@@ -1,12 +1,13 @@
 import os
+
 import numpy as np
 import sklearn.model_selection as modsel
 import torch
 import torch.utils.data as data
-from torch.utils.data.dataloader import DataLoader
-
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
+from torch.utils.data.dataloader import DataLoader
+
 from .data_classes.classification.australian_presplit import AustralianPresplit
 from .data_classes.classification.breast_cancer_presplit import \
     BreastCancerPresplit
@@ -29,147 +30,147 @@ from .data_classes.regression.yacht_presplit import YachtPresplit
 ######################################################
 
 
-DEFAULT_DATA_FOLDER = os.path.join(os.path.dirname(__file__), 'data')
+DEFAULT_DATA_FOLDER = os.path.join(os.path.dirname(__file__), "data")
 
 
 ################################################
 ## Construct class for dealing with data sets ##
 ################################################
 
-class Dataset():
-    def __init__(self, data_set, data_folder=DEFAULT_DATA_FOLDER):
+
+class Dataset:
+    def __init__(self, data_set, data_folder=DEFAULT_DATA_FOLDER, num_workers=0):
         super(type(self), self).__init__()
 
-        if data_set == "mnist":
-            self.train_set = dset.MNIST(root = data_folder,
-                                        train = True,
-                                        transform = transforms.ToTensor(),
-                                        download = True)
+        self.num_workers = num_workers
 
-            self.test_set = dset.MNIST(root = data_folder,
-                                       train = False,
-                                       transform = transforms.ToTensor())
+        if data_set == "mnist":
+            self.train_set = dset.MNIST(
+                root=data_folder,
+                train=True,
+                transform=transforms.ToTensor(),
+                download=True,
+            )
+
+            self.test_set = dset.MNIST(
+                root=data_folder, train=False, transform=transforms.ToTensor()
+            )
 
             self.task = "classification"
             self.num_features = 28 * 28
             self.num_classes = 10
 
         elif data_set == "australian_presplit":
-            self.train_set = AustralianPresplit(root = data_folder,
-                                                train = True)
-            self.test_set = AustralianPresplit(root = data_folder,
-                                               train = False)
+            self.train_set = AustralianPresplit(root=data_folder, train=True)
+            self.test_set = AustralianPresplit(root=data_folder, train=False)
 
             self.task = "classification"
             self.num_features = 14
             self.num_classes = 2
 
         elif data_set == "breastcancer_presplit":
-            self.train_set = BreastCancerPresplit(root = data_folder,
-                                                  train = True)
-            self.test_set = BreastCancerPresplit(root = data_folder,
-                                                 train = False)
+            self.train_set = BreastCancerPresplit(root=data_folder, train=True)
+            self.test_set = BreastCancerPresplit(root=data_folder, train=False)
 
             self.task = "classification"
             self.num_features = 10
             self.num_classes = 2
 
         elif data_set in ["boston" + str(i) for i in range(20)]:
-            self.train_set = BostonPresplit(root = data_folder,
-                                            data_set = data_set,
-                                            train = True)
-            self.test_set = BostonPresplit(root = data_folder,
-                                            data_set = data_set,
-                                            train = False)
+            self.train_set = BostonPresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
+            self.test_set = BostonPresplit(
+                root=data_folder, data_set=data_set, train=False
+            )
 
             self.task = "regression"
             self.num_features = 13
             self.num_classes = None
 
         elif data_set in ["concrete" + str(i) for i in range(20)]:
-            self.train_set = ConcretePresplit(root = data_folder,
-                                              data_set = data_set,
-                                              train = True)
-            self.test_set = ConcretePresplit(root = data_folder,
-                                             data_set = data_set,
-                                             train = False)
+            self.train_set = ConcretePresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
+            self.test_set = ConcretePresplit(
+                root=data_folder, data_set=data_set, train=False
+            )
 
             self.task = "regression"
             self.num_features = 8
             self.num_classes = None
 
         elif data_set in ["energy" + str(i) for i in range(20)]:
-            self.train_set = EnergyPresplit(root = data_folder,
-                                            data_set = data_set,
-                                            train = True)
-            self.test_set = EnergyPresplit(root = data_folder,
-                                            data_set = data_set,
-                                            train = False)
+            self.train_set = EnergyPresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
+            self.test_set = EnergyPresplit(
+                root=data_folder, data_set=data_set, train=False
+            )
 
             self.task = "regression"
             self.num_features = 8
             self.num_classes = None
 
         elif data_set in ["kin8nm" + str(i) for i in range(20)]:
-            self.train_set = Kin8nmPresplit(root = data_folder,
-                                            data_set = data_set,
-                                            train = True)
-            self.test_set = Kin8nmPresplit(root = data_folder,
-                                            data_set = data_set,
-                                            train = False)
+            self.train_set = Kin8nmPresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
+            self.test_set = Kin8nmPresplit(
+                root=data_folder, data_set=data_set, train=False
+            )
 
             self.task = "regression"
             self.num_features = 8
             self.num_classes = None
 
         elif data_set in ["naval" + str(i) for i in range(20)]:
-            self.train_set = NavalPresplit(root = data_folder,
-                                           data_set = data_set,
-                                           train = True)
-            self.test_set = NavalPresplit(root = data_folder,
-                                          data_set = data_set,
-                                          train = False)
+            self.train_set = NavalPresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
+            self.test_set = NavalPresplit(
+                root=data_folder, data_set=data_set, train=False
+            )
 
             self.task = "regression"
             self.num_features = 16
             self.num_classes = None
 
         elif data_set in ["powerplant" + str(i) for i in range(20)]:
-            self.train_set = PowerplantPresplit(root = data_folder,
-                                                data_set = data_set,
-                                                train = True)
-            self.test_set = PowerplantPresplit(root = data_folder,
-                                               data_set = data_set,
-                                               train = False)
+            self.train_set = PowerplantPresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
+            self.test_set = PowerplantPresplit(
+                root=data_folder, data_set=data_set, train=False
+            )
 
             self.task = "regression"
             self.num_features = 4
             self.num_classes = None
 
         elif data_set in ["wine" + str(i) for i in range(20)]:
-            self.train_set = WinePresplit(root = data_folder,
-                                          data_set = data_set,
-                                          train = True)
-            self.test_set = WinePresplit(root = data_folder,
-                                         data_set = data_set,
-                                         train = False)
+            self.train_set = WinePresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
+            self.test_set = WinePresplit(
+                root=data_folder, data_set=data_set, train=False
+            )
 
             self.task = "regression"
             self.num_features = 11
             self.num_classes = None
 
         elif data_set in ["yacht" + str(i) for i in range(20)]:
-            self.train_set = YachtPresplit(root = data_folder,
-                                           data_set = data_set,
-                                           train = True)
-            self.test_set = YachtPresplit(root = data_folder,
-                                          data_set = data_set,
-                                          train = False)
+            self.train_set = YachtPresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
+            self.test_set = YachtPresplit(
+                root=data_folder, data_set=data_set, train=False
+            )
 
             self.task = "regression"
             self.num_features = 6
             self.num_classes = None
-
 
         else:
             RuntimeError("Unknown data set")
@@ -181,22 +182,28 @@ class Dataset():
         return len(self.test_set)
 
     def get_train_loader(self, batch_size, shuffle=True):
-        train_loader = DataLoader(dataset = self.train_set,
-                                  batch_size = batch_size,
-                                  shuffle = shuffle)
+        train_loader = DataLoader(
+            dataset=self.train_set,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=self.num_workers,
+        )
         return train_loader
 
     def get_test_loader(self, batch_size, shuffle=False):
-        test_loader = DataLoader(dataset = self.test_set,
-                                 batch_size = batch_size,
-                                 shuffle = shuffle)
+        test_loader = DataLoader(
+            dataset=self.test_set,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=self.num_workers,
+        )
         return test_loader
 
     def load_full_train_set(self, use_cuda=torch.cuda.is_available()):
 
-        full_train_loader = DataLoader(dataset = self.train_set,
-                                       batch_size = len(self.train_set),
-                                       shuffle = False)
+        full_train_loader = DataLoader(
+            dataset=self.train_set, batch_size=len(self.train_set), shuffle=False
+        )
 
         x_train, y_train = next(iter(full_train_loader))
 
@@ -207,9 +214,9 @@ class Dataset():
 
     def load_full_test_set(self, use_cuda=torch.cuda.is_available()):
 
-        full_test_loader = DataLoader(dataset = self.test_set,
-                                      batch_size = len(self.test_set),
-                                      shuffle = False)
+        full_test_loader = DataLoader(
+            dataset=self.test_set, batch_size=len(self.test_set), shuffle=False
+        )
 
         x_test, y_test = next(iter(full_test_loader))
 
@@ -219,112 +226,108 @@ class Dataset():
         return x_test, y_test
 
 
-
 #######################################################################
 ## Construct class for dealing with data sets using cross-validation ##
 #######################################################################
 
-class DatasetCV():
-    def __init__(self, data_set, n_splits=3, seed=None, data_folder=DEFAULT_DATA_FOLDER):
+
+class DatasetCV:
+    def __init__(
+        self,
+        data_set,
+        n_splits=3,
+        seed=None,
+        data_folder=DEFAULT_DATA_FOLDER,
+        num_workers=0,
+    ):
         super(type(self), self).__init__()
 
         self.n_splits = n_splits
         self.seed = seed
         self.current_split = 0
+        self.num_workers = num_workers
 
         if data_set == "mnist":
-            self.data = dset.MNIST(root = data_folder,
-                                   train = True,
-                                   transform = transforms.ToTensor(),
-                                   download = True)
+            self.data = dset.MNIST(
+                root=data_folder,
+                train=True,
+                transform=transforms.ToTensor(),
+                download=True,
+            )
 
             self.task = "classification"
             self.num_features = 28 * 28
             self.num_classes = 10
 
         elif data_set == "australian_presplit":
-            self.data = AustralianPresplit(root = data_folder,
-                                           train = True)
+            self.data = AustralianPresplit(root=data_folder, train=True)
 
             self.task = "classification"
             self.num_features = 14
             self.num_classes = 2
 
         elif data_set == "breastcancer_presplit":
-            self.data = BreastCancerPresplit(root = data_folder,
-                                             train = True)
+            self.data = BreastCancerPresplit(root=data_folder, train=True)
 
             self.task = "classification"
             self.num_features = 10
             self.num_classes = 2
 
         elif data_set in ["boston" + str(i) for i in range(20)]:
-            self.data = BostonPresplit(root = data_folder,
-                                       data_set = data_set,
-                                       train = True)
+            self.data = BostonPresplit(root=data_folder, data_set=data_set, train=True)
 
             self.task = "regression"
             self.num_features = 13
             self.num_classes = None
 
         elif data_set in ["concrete" + str(i) for i in range(20)]:
-            self.data = ConcretePresplit(root = data_folder,
-                                         data_set = data_set,
-                                         train = True)
+            self.data = ConcretePresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
 
             self.task = "regression"
             self.num_features = 8
             self.num_classes = None
 
         elif data_set in ["energy" + str(i) for i in range(20)]:
-            self.data = EnergyPresplit(root = data_folder,
-                                         data_set = data_set,
-                                         train = True)
+            self.data = EnergyPresplit(root=data_folder, data_set=data_set, train=True)
 
             self.task = "regression"
             self.num_features = 8
             self.num_classes = None
 
         elif data_set in ["kin8nm" + str(i) for i in range(20)]:
-            self.data = Kin8nmPresplit(root = data_folder,
-                                         data_set = data_set,
-                                         train = True)
+            self.data = Kin8nmPresplit(root=data_folder, data_set=data_set, train=True)
 
             self.task = "regression"
             self.num_features = 8
             self.num_classes = None
 
         elif data_set in ["naval" + str(i) for i in range(20)]:
-            self.data = NavalPresplit(root = data_folder,
-                                         data_set = data_set,
-                                         train = True)
+            self.data = NavalPresplit(root=data_folder, data_set=data_set, train=True)
 
             self.task = "regression"
             self.num_features = 16
             self.num_classes = None
 
         elif data_set in ["powerplant" + str(i) for i in range(20)]:
-            self.data = PowerplantPresplit(root = data_folder,
-                                         data_set = data_set,
-                                         train = True)
+            self.data = PowerplantPresplit(
+                root=data_folder, data_set=data_set, train=True
+            )
 
             self.task = "regression"
             self.num_features = 4
             self.num_classes = None
 
         elif data_set in ["wine" + str(i) for i in range(20)]:
-            self.data = WinePresplit(root = data_folder,
-                                         data_set = data_set,
-                                         train = True)
+            self.data = WinePresplit(root=data_folder, data_set=data_set, train=True)
 
             self.task = "regression"
             self.num_features = 11
             self.num_classes = None
 
         elif data_set in ["yacht" + str(i) for i in range(20)]:
-            self.data = YachtPresplit(root = data_folder,
-                                      data_set = data_set,
-                                      train = True)
+            self.data = YachtPresplit(root=data_folder, data_set=data_set, train=True)
 
             self.task = "regression"
             self.num_features = 6
@@ -348,7 +351,7 @@ class DatasetCV():
         return self.current_split
 
     def set_current_split(self, split):
-        if split >= 0 and split <= self.n_splits-1:
+        if split >= 0 and split <= self.n_splits - 1:
             self.current_split = split
         else:
             RuntimeError("Split higher than number of splits")
@@ -357,7 +360,9 @@ class DatasetCV():
         return self.split_idx_val[self.current_split]
 
     def _get_current_train_idx(self):
-        return np.setdiff1d(range(len(self.data)), self.split_idx_val[self.current_split])
+        return np.setdiff1d(
+            range(len(self.data)), self.split_idx_val[self.current_split]
+        )
 
     def get_current_val_size(self):
         return len(self._get_current_val_idx())
@@ -367,16 +372,22 @@ class DatasetCV():
 
     def get_current_train_loader(self, batch_size, shuffle=True):
         train_set = Subset(self.data, self._get_current_train_idx())
-        train_loader = DataLoader(dataset = train_set,
-                                  batch_size = batch_size,
-                                  shuffle = shuffle)
+        train_loader = DataLoader(
+            dataset=train_set,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=self.num_workers,
+        )
         return train_loader
 
     def get_current_val_loader(self, batch_size, shuffle=True):
         val_set = Subset(self.data, self._get_current_val_idx())
-        val_loader = DataLoader(dataset = val_set,
-                                batch_size = batch_size,
-                                shuffle = shuffle)
+        val_loader = DataLoader(
+            dataset=val_set,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=self.num_workers,
+        )
         return val_loader
 
     def load_current_train_set(self, use_cuda=torch.cuda.is_available()):
@@ -394,6 +405,7 @@ class DatasetCV():
             x_test, y_test = x_test.cuda(), y_test.cuda()
 
         return x_test, y_test
+
 
 class Subset(data.Dataset):
     def __init__(self, dataset, indices):
