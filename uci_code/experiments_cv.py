@@ -897,7 +897,6 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
             act_func=self.model_params["act_func"],
             prior_prec=self.model_params["prior_prec"],
             dropout=self.model_params["dropout"],
-            # prec_init=self.optim_params["prec_init"], #Should I manually init (He/Glorot?)
         )
         if self.use_cuda:
             self.model = self.model.cuda()
@@ -915,8 +914,8 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         )
 
         self.optimizer = Adam(
-            add_weight_decay(self.model, weight_decay),
-            # self.optimizer = Adam(self.model.parameters(),
+            # add_weight_decay(self.model, weight_decay),
+            self.model.parameters(),
             lr=self.optim_params["learning_rate"],
             betas=self.optim_params["betas"],
             weight_decay=weight_decay,

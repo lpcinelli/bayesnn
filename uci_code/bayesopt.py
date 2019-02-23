@@ -96,12 +96,9 @@ def run_bayesopt(
 
     # def cv_exp(log_noise_prec, log_prior_prec, dropout=None):
     def cv_exp(**kwargs):
-
         model_params_cv = copy.deepcopy(model_params)
-        log_noise_prec = kwargs.get("noise_prec")
-        model_params_cv["noise_prec"] = math.exp(log_noise_prec)
-        log_prior_prec = kwargs.get("prior_prec")
-        model_params_cv["prior_prec"] = math.exp(log_prior_prec)
+        model_params_cv["noise_prec"] = math.exp(kwargs.get("log_noise_prec"))
+        model_params_cv["prior_prec"] = math.exp(kwargs.get("log_prior_prec"))
 
         #######################
         ## Define experiment ##
