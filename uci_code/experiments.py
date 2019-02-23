@@ -252,7 +252,8 @@ class Experiment():
     def _print_objective(self, epoch):
 
         # Print average objective from last epoch
-        print('Epoch [{}/{}], Objective: {:.4f}'.format(
+        print('Dataset: {:12s}, Epoch [{:2d}/{:2d}], Objective: {:.4f}'.format(
+                self.data_params['data_set'],
                 epoch+1,
                 self.train_params['num_epochs'],
                 self.objective_history[-1]))
@@ -317,9 +318,9 @@ class Experiment():
 
 
 
-######################################
-## Define experiment class for BBVI ##
-######################################
+#####################################
+## Define experiment class for BBB ##
+#####################################
 
 class ExperimentBBBMLPReg(Experiment):
 
@@ -420,6 +421,192 @@ class ExperimentBBBMLPReg(Experiment):
                 self.metric_history['test_pred_logloss'][-1]))
 
 
+
+##################################################
+## Define experiment class for Bayesian Dropout ##
+##################################################
+
+
+class ExperimentDropoutMLPReg(Experiment):
+    def __init__(
+        self,
+        data_set,
+        model_params,
+        train_params,
+        optim_params,
+        evals_per_epochs=1,
+        normalize_x=False,
+        normalize_y=False,
+        results_folder="./results",
+        data_folder=DEFAULT_DATA_FOLDER,
+        use_cuda=torch.cuda.is_available(),
+    ):
+        super(type(self), self).__init__(
+            data_set,
+            model_params,
+            train_params,
+            optim_params,
+            evals_per_epoch,
+            normalize_x,
+            normalize_y,
+            results_folder,
+            data_folder,
+            use_cuda,
+        )
+
+        # Define name for experiment class
+        experiment_name = "dropout_mlp_reg"
+
+        # Define folder name for results
+        self.folder_name = folder_name(
+            experiment_name,
+            data_set,
+            model_params,
+            train_params,
+            optim_params,
+            results_folder,
+        )
+
+        # Initialize model
+        self.model = DropoutMLP(
+            input_size=self.data.num_features,
+            hidden_sizes=model_params["hidden_sizes"],
+            output_size=self.data.num_classes,
+            act_func=model_params["act_func"],
+            prior_prec=model_params["prior_prec"],
+            dropout=model_params["dropout"],
+        )
+        if self.use_cuda:
+            self.model = self.model.cuda()
+
+        # Define prediction function
+        def prediction(x):
+            mu_list = [
+                self.model(x) for _ in range(self.train_params["train_mc_samples"])
+            ]
+            return mu_list
+
+        self.prediction = prediction
+
+        # Define objective ?
+        def objective(mu_list, y):
+            return metrics.mc_mse(y, mu_list)
+            # return metrics.avneg_elbo_gaussian(mu_list, y, tau = self.model_params['noise_prec'], train_set_size = self.data.get_current_train_size(), kl = self.model.kl_divergence())
+
+        # Initialize optmizer
+        tau = model_params["noise_prec"]
+        N = data.get_train_size()
+        weight_decay = (
+            (1 - model_params["dropout"])
+            * model_params["prior_prec"] ** 2
+            / (2 * tau * N)
+        )
+
+        self.optimizer = Adam(
+            self.model.parameters(),
+            lr=optim_params["learning_rate"],
+            betas=optim_params["betas"],
+            weight_decay=weight_decay,
+            eps=1e-8,
+        )
+        # Initialize metric history
+        self.metric_history = dict(
+                elbo_neg_ave=[], #Shouldn't it be the rmse that its optimized?
+                train_pred_logloss=[],
+                train_pred_rmse=[],
+                test_pred_logloss=[],
+                test_pred_rmse=[],
+            )
+
+        # Initialize final metric
+        self.final_metric = dict(
+                elbo_neg_ave=[], #Shouldn't it be the rmse that its optimized?
+                train_pred_logloss=[],
+                train_pred_rmse=[],
+                test_pred_logloss=[],
+                test_pred_rmse=[],
+            )
+
+    def _evaluate_model(self, metric_dict, x_train, y_train, x_test, y_test):
+
+        # Unnormalize noise precision
+        if self.normalize_y:
+            tau = self.model_params["noise_prec"] / (self.y_std ** 2)
+        else:
+            tau = self.model_params["noise_prec"]
+
+        # Normalize train x
+        if self.normalize_x:
+            x_train = (x_train - self.x_means) / self.x_stds
+
+        # Get train predictions
+        mu_list = [
+            self.model(x_train) for _ in range(self.train_params["eval_mc_samples"])
+        ]
+
+        # Unnormalize train predictions
+        if self.normalize_y:
+            mu_list = [self.y_mean + self.y_std * mu for mu in mu_list]
+
+        # Store train metrics
+        metric_dict["train_pred_logloss"].append(
+            metrics.predictive_avneg_loglik_gaussian(mu_list, y_train, tau=tau)
+            .detach()
+            .cpu()
+            .item()
+        )
+        metric_dict["train_pred_rmse"].append(
+            metrics.predictive_rmse(mu_list, y_train).detach().cpu().item()
+        )
+        metric_dict["elbo_neg_ave"].append(
+            metrics.avneg_elbo_gaussian(
+                mu_list,
+                y_train,
+                tau=tau,
+                train_set_size=self.data.get_current_train_size(),
+                kl=self.model.kl_divergence(),
+            )
+            .detach()
+            .cpu()
+            .item()
+        )
+
+        # Normalize test x
+        if self.normalize_x:
+            x_test = (x_test - self.x_means) / self.x_stds
+
+        # Get test predictions
+        mu_list = [
+            self.model(x_test) for _ in range(self.train_params["eval_mc_samples"])
+        ]
+
+        # Unnormalize test predictions
+        if self.normalize_y:
+            mu_list = [self.y_mean + self.y_std * mu for mu in mu_list]
+
+        # Store test metrics
+        metric_dict["test_pred_logloss"].append(
+            metrics.predictive_avneg_loglik_gaussian(mu_list, y_test, tau=tau)
+            .detach()
+            .cpu()
+            .item()
+        )
+        metric_dict["test_pred_rmse"].append(
+            metrics.predictive_rmse(mu_list, y_test).detach().cpu().item()
+        )
+
+    def _print_progress(self, epoch):
+
+        # Print progress
+        print(
+            "Epoch [{}/{}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f}".format(
+                epoch + 1,
+                self.train_params["num_epochs"],
+                self.metric_history["elbo_neg_ave"][-1],
+                self.metric_history["train_pred_logloss"][-1],
+                self.metric_history["test_pred_logloss"][-1],
+            )
+        )
 
 #######################################
 ## Define experiment class for Vadam ##
