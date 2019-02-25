@@ -67,7 +67,10 @@ class multiproc_optim:
             param_bounds = {"log_noise_prec": (0, 5), "log_prior_prec": (-4, 4)}
 
         if self.method == "dropout":
-            param_bounds["dropout"] = (0, 1)
+            param_bounds["dropout"] = (0, 0.1)
+            length_scale = self.length_scale + [0.5]
+        else:
+            length_scale = self.length_scale
 
         if data_set in large_data_sets:
             self.train_params["batch_size"] = 128
@@ -88,7 +91,7 @@ class multiproc_optim:
             evals_per_epoch=self.evals_per_epoch,
             param_bounds=param_bounds,
             bo_params=self.bo_params,
-            length_scale=self.length_scale,
+            length_scale=length_scale,
             nu=self.nu,
             alpha=self.alpha,
         )
@@ -135,7 +138,7 @@ def main(args):
     
     # Gaussian Process parameters
     length_scale = [1, 2]
-    nu = 2.5
+    nu = 2.5  # funcs approximated by GP will be 2-differentiable
     alpha = 1e-2
 
     multiproc_func = multiproc_optim(
@@ -156,10 +159,10 @@ def main(args):
 
     start_time = time.time()
 
-    mp = multiprocessing.get_context("spawn")
-    # mp = multiprocessing.get_context("forkserver")
+    # mp = multiprocessing.get_context("spawn")
+    mp = multiprocessing.get_context("forkserver")
     pool = mp.Pool(processes=args.jobs)
-    pool.map(multiproc_func, ["yacht0", "yacht1", "yacht2"])
+    pool.map(multiproc_func, grid)
     pool.close()
     pool.join()
 

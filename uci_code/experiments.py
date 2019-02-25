@@ -6,7 +6,7 @@ import numpy as np
 
 from ..datasets import Dataset, DEFAULT_DATA_FOLDER
 from .. import metrics
-from ..models import MLP, BNN
+from ..models import MLP, BNN, DropoutMLP
 
 from torch.optim import Adam
 from ..vadam.optimizers import Vadam, Vprop
@@ -434,7 +434,7 @@ class ExperimentDropoutMLPReg(Experiment):
         model_params,
         train_params,
         optim_params,
-        evals_per_epochs=1,
+        evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
         results_folder="./results",
@@ -474,7 +474,7 @@ class ExperimentDropoutMLPReg(Experiment):
             output_size=self.data.num_classes,
             act_func=model_params["act_func"],
             prior_prec=model_params["prior_prec"],
-            dropout=model_params["dropout"],
+            drop_prob=model_params["dropout"],
         )
         if self.use_cuda:
             self.model = self.model.cuda()
@@ -490,15 +490,18 @@ class ExperimentDropoutMLPReg(Experiment):
 
         # Define objective ?
         def objective(mu_list, y):
-            return metrics.mc_mse(y, mu_list)
-            # return metrics.avneg_elbo_gaussian(mu_list, y, tau = self.model_params['noise_prec'], train_set_size = self.data.get_current_train_size(), kl = self.model.kl_divergence())
+            return metrics.mc_mse(mu_list, y)
+            # return metrics.avneg_elbo_gaussian(mu_list, y, tau = self.model_params['noise_prec'],
+                                               # train_set_size = self.data.get_current_train_size(),
+                                               # kl = self.model.kl_divergence())
+        self.objective = objective
 
         # Initialize optmizer
         tau = model_params["noise_prec"]
-        N = data.get_train_size()
+        N = self.data.get_train_size()
         weight_decay = (
             (1 - model_params["dropout"])
-            * model_params["prior_prec"] ** 2
+            * (model_params["prior_prec"] ** 2)
             / (2 * tau * N)
         )
 
@@ -511,7 +514,7 @@ class ExperimentDropoutMLPReg(Experiment):
         )
         # Initialize metric history
         self.metric_history = dict(
-                elbo_neg_ave=[], #Shouldn't it be the rmse that its optimized?
+                mse_ave=[], #Shouldn't it be the rmse that its optimized?
                 train_pred_logloss=[],
                 train_pred_rmse=[],
                 test_pred_logloss=[],
@@ -520,7 +523,7 @@ class ExperimentDropoutMLPReg(Experiment):
 
         # Initialize final metric
         self.final_metric = dict(
-                elbo_neg_ave=[], #Shouldn't it be the rmse that its optimized?
+                mse_ave=[], #Shouldn't it be the rmse that its optimized?
                 train_pred_logloss=[],
                 train_pred_rmse=[],
                 test_pred_logloss=[],
@@ -558,13 +561,10 @@ class ExperimentDropoutMLPReg(Experiment):
         metric_dict["train_pred_rmse"].append(
             metrics.predictive_rmse(mu_list, y_train).detach().cpu().item()
         )
-        metric_dict["elbo_neg_ave"].append(
-            metrics.avneg_elbo_gaussian(
+        metric_dict["mse_ave"].append(
+            metrics.mc_mse(
                 mu_list,
                 y_train,
-                tau=tau,
-                train_set_size=self.data.get_current_train_size(),
-                kl=self.model.kl_divergence(),
             )
             .detach()
             .cpu()
@@ -599,10 +599,10 @@ class ExperimentDropoutMLPReg(Experiment):
 
         # Print progress
         print(
-            "Epoch [{}/{}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f}".format(
+            "Epoch [{}/{}], Ave. MSE: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f}".format(
                 epoch + 1,
                 self.train_params["num_epochs"],
-                self.metric_history["elbo_neg_ave"][-1],
+                self.metric_history["mse_ave"][-1],
                 self.metric_history["train_pred_logloss"][-1],
                 self.metric_history["test_pred_logloss"][-1],
             )

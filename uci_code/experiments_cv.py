@@ -1,6 +1,5 @@
 import os
 import pickle
-
 import numpy as np
 import torch
 from torch.optim import Adam
@@ -290,7 +289,6 @@ class CrossValExperiment:
                         loss = self.objective(logits, y)
                         loss.backward()
                         return loss
-
                     loss = self.optimizer.step(closure)
 
                     # Store batch objective
@@ -596,6 +594,9 @@ class CrossValExperimentVadamMLPReg(CrossValExperiment):
             metrics.predictive_rmse(mu_list, y_test).detach().cpu().item()
         )
 
+        # TODO: Compute: np.mean(errors), np.std(errors), np.std(errors)/math.sqrt(n_splits),
+        # np.percentile(errors, 50), np.percentile(errors, 25), np.percentile(errors, 75)
+
     def _print_progress(self, split, epoch):
 
         # Print progress
@@ -790,6 +791,9 @@ class CrossValExperimentBBBMLPReg(CrossValExperiment):
             metrics.predictive_rmse(mu_list, y_test).detach().cpu().item()
         )
 
+        # TODO: Compute: np.mean(errors), np.std(errors), np.std(errors)/math.sqrt(n_splits),
+        # np.percentile(errors, 50), np.percentile(errors, 25), np.percentile(errors, 75)
+
     def _print_progress(self, split, epoch):
 
         # Print progress
@@ -860,7 +864,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
 
         # Define objective ?
         def objective(mu_list, y):
-            return metrics.mc_mse(y, mu_list)
+            return metrics.mc_mse(mu_list, y)
             # return metrics.avneg_elbo_gaussian(mu_list, y, tau = self.model_params['noise_prec'], train_set_size = self.data.get_current_train_size(), kl = self.model.kl_divergence())
 
         self.objective = objective
@@ -868,7 +872,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         # Initialize metric history
         self.metric_history = [
             dict(
-                elbo_neg_ave=[],
+                mse_ave=[],
                 train_pred_logloss=[],
                 train_pred_rmse=[],
                 test_pred_logloss=[],
@@ -880,7 +884,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         # Initialize final metric
         self.final_metric = [
             dict(
-                elbo_neg_ave=[],
+                mse_ave=[],
                 train_pred_logloss=[],
                 train_pred_rmse=[],
                 test_pred_logloss=[],
@@ -896,7 +900,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
             output_size=self.data.num_classes,
             act_func=self.model_params["act_func"],
             prior_prec=self.model_params["prior_prec"],
-            dropout=self.model_params["dropout"],
+            drop_prob=self.model_params["dropout"],
         )
         if self.use_cuda:
             self.model = self.model.cuda()
@@ -909,7 +913,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         # noise_prec = tau
         weight_decay = (
             (1 - self.model_params["dropout"])
-            * self.model_params["prior_prec"] ** 2
+            * (self.model_params["prior_prec"] ** 2)
             / (2 * tau * N)
         )
 
@@ -953,13 +957,10 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         metric_dict["train_pred_rmse"].append(
             metrics.predictive_rmse(mu_list, y_train).detach().cpu().item()
         )
-        metric_dict["elbo_neg_ave"].append(
-            metrics.avneg_elbo_gaussian(
+        metric_dict["mse_ave"].append(
+            metrics.mc_mse(
                 mu_list,
                 y_train,
-                tau=tau,
-                train_set_size=self.data.get_current_train_size(),
-                kl=self.model.kl_divergence(),
             )
             .detach()
             .cpu()
@@ -990,16 +991,19 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
             metrics.predictive_rmse(mu_list, y_test).detach().cpu().item()
         )
 
+        # TODO: Compute: np.mean(errors), np.std(errors), np.std(errors)/math.sqrt(n_splits),
+        # np.percentile(errors, 50), np.percentile(errors, 25), np.percentile(errors, 75)
+
     def _print_progress(self, split, epoch):
 
         # Print progress
         print(
-            "Split [{}/{}], Epoch [{}/{}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f}".format(
+            "Split [{}/{}], Epoch [{}/{}], Ave. MSE: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f}".format(
                 split + 1,
                 self.data_params["n_splits"],
                 epoch + 1,
                 self.train_params["num_epochs"],
-                self.metric_history[split]["elbo_neg_ave"][-1],
+                self.metric_history[split]["mse_ave"][-1],
                 self.metric_history[split]["train_pred_logloss"][-1],
                 self.metric_history[split]["test_pred_logloss"][-1],
             )
