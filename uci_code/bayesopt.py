@@ -173,7 +173,6 @@ def run_bayesopt(
     ###############################
 
     bo = BayesianOptimization(cv_exp, param_bounds)
-
     bo.maximize(
         init_points=bo_params["init_points"],
         n_iter=bo_params["n_iter"],
@@ -267,9 +266,9 @@ def run_bayesopt(
     experiment.save(
         save_final_metric=True,
         save_metric_history=True,
-        save_objective_history=False,
-        save_model=False,
-        save_optimizer=False,
+        save_objective_history=True,
+        save_model=True,
+        save_optimizer=True,
         folder_path=folder,
     )
 
