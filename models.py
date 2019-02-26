@@ -26,9 +26,10 @@ def select_act(act_func):
 class DropoutMLP(nn.Module):
     """Implements "Dropout as as a Bayesian Approximation": before every weight
     layer insert a dropout layer. If using Bernoulli dropout, the underlaying
-    variational distributionadgb
+    variational distribution is
 
-    All weight Weights are initialized by the default rule for torch.nn.Linear (torch.nn.init.kaiming_uniform_):
+    All weight Weights are initialized by the default rule for torch.nn.Linear
+    (torch.nn.init.kaiming_uniform_):
         W ~ U[ -1/fan_in, 1/fan_in ];
 
     Arguments:
@@ -47,7 +48,7 @@ class DropoutMLP(nn.Module):
         prior_prec,
         act_func="relu",
     ):
-        super(MLP, self).__init__()
+        super(DropoutMLP, self).__init__()
         self.input_size = input_size
         self.hidden_sizes = hidden_sizes
         self.drop_prob = drop_prob
@@ -93,6 +94,13 @@ class DropoutMLP(nn.Module):
         if self.squeeze_output:
             z = torch.squeeze(z).view([-1])
         return z
+
+    def train(self, mode=True):
+        """Setting the mode through this function has no real effect.
+        This behaviour is on purpose since for MC Dropout to work, dropout
+        masks should be sampled both during training and testing.
+        """
+        return super(DropoutMLP, self).train(mode=True)
 
 
 ############################
