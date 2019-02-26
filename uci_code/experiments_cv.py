@@ -1,10 +1,13 @@
 import os
 import pickle
+import time
+
 import numpy as np
 import torch
 from torch.optim import Adam
 
 from .. import metrics
+from ..callbacks import Timemeasure
 from ..datasets import DEFAULT_DATA_FOLDER, DatasetCV
 from ..models import BNN, MLP, DropoutMLP
 from ..utils import add_weight_decay
@@ -220,6 +223,7 @@ class CrossValExperiment:
     def run(self, log_metric_history=True):
 
         # Prepare
+        callback = Timemeasure(self.data_params["data_set"], self.print_freq)
         n_splits = self.data_params["n_splits"]
         num_epochs = self.train_params["num_epochs"]
         batch_size = self.train_params["batch_size"]
@@ -231,6 +235,8 @@ class CrossValExperiment:
             torch.cuda.manual_seed_all(seed)
 
         for split in range(n_splits):
+
+            callback.on_begin()
 
             # Set current split
             self.data.set_current_split(split)
@@ -262,7 +268,10 @@ class CrossValExperiment:
             self._init_optimizer()
 
             # Train model
+
             for epoch in range(num_epochs):
+
+                callback.on_epoch_begin(epoch)
 
                 # Set model in training mode
                 self.model.train(True)
@@ -270,7 +279,11 @@ class CrossValExperiment:
                 # Initialize batch objective accumulator
                 batch_objective = []
 
+                callback.on_step_begin(self.data.get_current_train_size(),
+                                       log_metric_history)
+
                 for i, (x, y) in enumerate(train_loader):
+                    callback.on_batch_begin(i, x.size(0))
 
                     # Prepare minibatch
                     if self.use_cuda:
@@ -289,13 +302,18 @@ class CrossValExperiment:
                         loss = self.objective(logits, y)
                         loss.backward()
                         return loss
+
                     loss = self.optimizer.step(closure)
 
                     # Store batch objective
                     batch_objective.append(loss.detach().cpu().item())
 
+                    callback.on_batch_end()
+
                 # Compute and store average objective from last epoch
                 self.objective_history[split].append(np.mean(batch_objective))
+
+                callback.on_step_end()
 
                 if log_metric_history:
 
@@ -309,22 +327,25 @@ class CrossValExperiment:
                         )
 
                     # Print progress
-                    self._print_progress(split, epoch)
+                    msg = self._print_progress(split, epoch)
 
                 else:
+                    # Print average objective from last epoch
+                    msg = self._print_objective(split, epoch)
 
-                    if (epoch % self.print_freq) == 0:
-                        # Print average objective from last epoch
-                        self._print_objective(split, epoch)
+                callback.on_epoch_end(msg)
 
             # Set model in test mode
             self.model.train(False)
+
+            callback.on_end()
 
             # Evaluate model
             with torch.no_grad():
                 self._evaluate_model(
                     self.final_metric[split], x_train, y_train, x_val, y_val
                 )
+
 
     def _init_model(self):
 
@@ -349,7 +370,8 @@ class CrossValExperiment:
     def _print_objective(self, split, epoch):
 
         # Print average objective from last epoch
-        print("Dataset: {}, Split [{}/{}], Epoch [{}/{}], Objective: {:.4f}".format(
+        msg = [
+            "Dataset: {}, Split [{}/{}], Epoch [{}/{}], Loss: {:.4f} ".format(
                 self.data_params["data_set"],
                 split + 1,
                 self.data_params["n_splits"],
@@ -357,7 +379,8 @@ class CrossValExperiment:
                 self.train_params["num_epochs"],
                 self.objective_history[split][-1],
             )
-        )
+        ]
+        return msg
 
     def save(
         self,
@@ -600,8 +623,9 @@ class CrossValExperimentVadamMLPReg(CrossValExperiment):
     def _print_progress(self, split, epoch):
 
         # Print progress
-        print(
-              "Dataset: {:12s}, Split [{}/{}], Epoch [{:2d}/{:2d}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f}".format(
+        # print(
+        msg = [
+            "Dataset: {:12s}, Split [{}/{}], Epoch [{:2d}/{:2d}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f} ".format(
                 self.data_params["data_set"],
                 split + 1,
                 self.data_params["n_splits"],
@@ -611,7 +635,8 @@ class CrossValExperimentVadamMLPReg(CrossValExperiment):
                 self.metric_history[split]["train_pred_logloss"][-1],
                 self.metric_history[split]["test_pred_logloss"][-1],
             )
-        )
+        ]
+        return msg
 
 
 #####################################
@@ -797,8 +822,9 @@ class CrossValExperimentBBBMLPReg(CrossValExperiment):
     def _print_progress(self, split, epoch):
 
         # Print progress
-        print(
-            "Split [{}/{}], Epoch [{}/{}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f}".format(
+        # print(
+        msg = [
+            "Split [{}/{}], Epoch [{}/{}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f} ".format(
                 split + 1,
                 self.data_params["n_splits"],
                 epoch + 1,
@@ -807,8 +833,8 @@ class CrossValExperimentBBBMLPReg(CrossValExperiment):
                 self.metric_history[split]["train_pred_logloss"][-1],
                 self.metric_history[split]["test_pred_logloss"][-1],
             )
-        )
-
+        ]
+        return msg
 
 ##################################################
 ## Define experiment class for Bayesian Dropout ##
@@ -958,13 +984,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
             metrics.predictive_rmse(mu_list, y_train).detach().cpu().item()
         )
         metric_dict["mse_ave"].append(
-            metrics.mc_mse(
-                mu_list,
-                y_train,
-            )
-            .detach()
-            .cpu()
-            .item()
+            metrics.mc_mse(mu_list, y_train).detach().cpu().item()
         )
 
         # Normalize test x
@@ -997,8 +1017,9 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
     def _print_progress(self, split, epoch):
 
         # Print progress
-        print(
-            "Split [{}/{}], Epoch [{}/{}], Ave. MSE: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f}".format(
+        # print(
+        msg = [
+            "Split [{}/{}], Epoch [{}/{}], Ave. MSE: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f} ".format(
                 split + 1,
                 self.data_params["n_splits"],
                 epoch + 1,
@@ -1007,4 +1028,5 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
                 self.metric_history[split]["train_pred_logloss"][-1],
                 self.metric_history[split]["test_pred_logloss"][-1],
             )
-        )
+        ]
+        return msg
