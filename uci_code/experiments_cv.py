@@ -1,4 +1,5 @@
 import os
+import pdb
 import pickle
 import time
 
@@ -165,7 +166,7 @@ class CrossValExperiment:
         results_folder="./results",
         data_folder=DEFAULT_DATA_FOLDER,
         use_cuda=torch.cuda.is_available(),
-        print_freq=5,
+        print_freq=13,
     ):
 
         # Store parameters
@@ -247,7 +248,7 @@ class CrossValExperiment:
             # Load full data set for evaluation
             x_train, y_train = self.data.load_current_train_set(use_cuda=self.use_cuda)
             x_val, y_val = self.data.load_current_val_set(use_cuda=self.use_cuda)
-
+            # pdb.set_trace()
             # Compute normalization of x
             if self.normalize_x:
                 self.x_means = torch.mean(x_train, dim=0)
@@ -258,8 +259,7 @@ class CrossValExperiment:
             if self.normalize_y:
                 self.y_mean = torch.mean(y_train)
                 self.y_std = torch.std(y_train)
-                if self.y_std == 0:
-                    self.y_std = 1
+                self.y_std[self.y_std == 0] = 1
 
             # Initialize model
             self._init_model()
@@ -371,7 +371,7 @@ class CrossValExperiment:
 
         # Print average objective from last epoch
         msg = [
-            "Dataset: {}, Split [{}/{}], Epoch [{}/{}], Loss: {:.4f} ".format(
+            "{}, Split [{}/{}], Epoch [{}/{}], Loss: {:.4f} ".format(
                 self.data_params["data_set"],
                 split + 1,
                 self.data_params["n_splits"],
@@ -404,14 +404,17 @@ class CrossValExperiment:
             output = open(os.path.join(folder_path, "final_metric.pkl"), "wb")
             pickle.dump(self.final_metric, output)
             output.close()
+            print("Just saved final metric")
         if save_metric_history:
             output = open(os.path.join(folder_path, "metric_history.pkl"), "wb")
             pickle.dump(self.metric_history, output)
             output.close()
+            print("Just saved metric history")
         if save_objective_history:
             output = open(os.path.join(folder_path, "objective_history.pkl"), "wb")
             pickle.dump(self.objective_history, output)
             output.close()
+            print("Just saved objective history")
 
     def load(
         self,
@@ -625,7 +628,7 @@ class CrossValExperimentVadamMLPReg(CrossValExperiment):
         # Print progress
         # print(
         msg = [
-            "Dataset: {:12s}, Split [{}/{}], Epoch [{:2d}/{:2d}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f} ".format(
+            "{:12s}, Split [{}/{}], Epoch [{:2d}/{:2d}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f} ".format(
                 self.data_params["data_set"],
                 split + 1,
                 self.data_params["n_splits"],
@@ -824,7 +827,8 @@ class CrossValExperimentBBBMLPReg(CrossValExperiment):
         # Print progress
         # print(
         msg = [
-            "Split [{}/{}], Epoch [{}/{}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f} ".format(
+            "{:12s}, Split [{}/{}], Epoch [{}/{}], Neg. Ave. ELBO: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f} ".format(
+                self.data_params["data_set"],
                 split + 1,
                 self.data_params["n_splits"],
                 epoch + 1,
@@ -920,12 +924,14 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         ]
 
     def _init_model(self):
+        lengthscale = 1e-2
         self.model = DropoutMLP(
             input_size=self.data.num_features,
             hidden_sizes=self.model_params["hidden_sizes"],
             output_size=self.data.num_classes,
             act_func=self.model_params["act_func"],
-            prior_prec=self.model_params["prior_prec"],
+            prior_prec=lengthscale,
+            # prior_prec=self.model_params["prior_prec"],
             drop_prob=self.model_params["dropout"],
         )
         if self.use_cuda:
@@ -937,9 +943,10 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         # Vadam paper vs. MC Dropout paper nomenclature
         # prior_prec = (prior) lengthscale
         # noise_prec = tau
+        lengthscale = 1e-2
         weight_decay = (
             (1 - self.model_params["dropout"])
-            * (self.model_params["prior_prec"] ** 2)
+            * (lengthscale ** 2)
             / (2 * tau * N)
         )
 
@@ -1019,7 +1026,8 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         # Print progress
         # print(
         msg = [
-            "Split [{}/{}], Epoch [{}/{}], Ave. MSE: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f} ".format(
+            "{:12s}, Split [{}/{}], Epoch [{}/{}], Ave. MSE: {:.4f}, Logloss: {:.4f}, Test Logloss: {:.4f} ".format(
+                self.data_params["data_set"],
                 split + 1,
                 self.data_params["n_splits"],
                 epoch + 1,

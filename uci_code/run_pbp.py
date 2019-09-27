@@ -1,12 +1,14 @@
 import argparse
+import multiprocessing
 import os
+import pickle
 import time
 
-from dataclasses import dataclass
-from numpy.random import shuffle
-from torch import multiprocessing
+# from .bayesopt import run_bayesopt
+from .experiments_pbp import ExperimentPBPReg
 
-from .bayesopt import run_bayesopt
+# from dataclasses import dataclass
+
 
 ####################
 ## Set parameters ##
@@ -16,9 +18,6 @@ dirname = os.path.dirname(__file__)
 #################
 ## Define grid ##
 #################
-
-datasets = ['yacht', 'energy', 'concrete', 'boston', 'wine', 'naval', 'powerplant', 'kin8nm']
-grid = [ds + str(i) for i in range(20) for ds in datasets]
 
 all_data_sets = (
     ["yacht" + str(i) for i in range(20)]
@@ -38,81 +37,66 @@ large_data_sets = (
     + ["powerplant" + str(i) for i in range(20)]
 )
 
-# grid = [(data_set) for data_set in all_data_sets]
+grid = [(data_set) for data_set in all_data_sets]
+
 
 #######################
 ## Define BO process ##
 #######################
 
 
-@dataclass
+# @dataclass
 class multiproc_optim:
-    method: str
-    data_folder: str
-    results_folder: str
-    data_params: dict
-    model_params: dict
-    train_params: dict
-    optim_params: dict
-    evals_per_epoch: int
-    bo_params: dict
-    length_scale: list
-    nu: float
-    alpha: float
-    exp_prefix: str
+    def __init__(
+        self,
+        method=None,
+        data_folder=None,
+        results_folder=None,
+        data_params=None,
+        model_params=None,
+        train_params=None,
+        exp_prefix=None,
+    ):
+        self.method = method
+        self.data_folder = data_folder
+        self.results_folder = results_folder
+        self.data_params = data_params
+        self.model_params = model_params
+        self.train_params = train_params
+        self.exp_prefix = exp_prefix
 
     def __call__(self, data_set):
+        start_clock_time = time.time()
+        start_process_time = time.process_time()
+
         self.data_params["data_set"] = data_set
 
-        if data_set.startswith(("naval", "powerplant")):
-            param_bounds = {"log_noise_prec": (1, 5), "log_prior_prec": (-3, 4)}
-        else:
-            param_bounds = {"log_noise_prec": (0, 5), "log_prior_prec": (-4, 4)}
-
-        if self.method == "dropout":
-            param_bounds["dropout"] = (0, 0.1)
-            del param_bounds["log_prior_prec"]
-            # length_scale = self.length_scale + [0.5]
-            length_scale = self.length_scale
-        else:
-            length_scale = self.length_scale
-
-        if data_set in large_data_sets:
-            self.train_params["batch_size"] = 128
-            if self.train_params["train_mc_samples"] is None:
-                if self.method == "vadam":
-                    self.train_params["train_mc_samples"] = 5
-                elif self.method == "dropout":
-                    self.train_params["train_mc_samples"] = 10  # 1
-                else:  # bbb
-                    self.train_params["train_mc_samples"] = 5 # change this back to 10 (21/04/2019)
-        else:
-            self.train_params["batch_size"] = 32
-            if self.train_params["train_mc_samples"] is None:
-                if self.method == "vadam":
-                    self.train_params["train_mc_samples"] = 10
-                elif self.method == "dropout":
-                    self.train_params["train_mc_samples"] = 10  # 1
-                else:  # bbb
-                    self.train_params["train_mc_samples"] = 10 # change this back to 20 (21/04/2019)
-
-        run_bayesopt(
-            method=self.method,
+        experiment = ExperimentPBPReg(
+            results_folder=self.results_folder,
             experiment_prefix=self.exp_prefix,
             data_folder=self.data_folder,
-            results_folder=self.results_folder,
-            data_params=self.data_params,
+            data_set=self.data_params["data_set"],
             model_params=self.model_params,
             train_params=self.train_params,
-            optim_params=self.optim_params,
-            evals_per_epoch=self.evals_per_epoch,
-            param_bounds=param_bounds,
-            bo_params=self.bo_params,
-            length_scale=length_scale,
-            nu=self.nu,
-            alpha=self.alpha,
+            normalize_x=True,
+            normalize_y=True,
+        )
+        experiment.run(log_metric_history=True)
+
+        total_wall_clock_time = time.time() - start_clock_time
+        total_process_time = time.process_time() - start_process_time
+        experiment.save(
+            save_final_metric=True,
+            save_metric_history=True,
+            # save_objective_history=True,
+            save_model=True,
+            # folder_path=folder,
         )
 
+        with open(os.path.join(experiment.folder_name, "run_time.pkl"), "wb") as output:
+            pickle.dump({'wall_clock': total_wall_clock_time,
+                         'process_time': total_process_time},
+                        output)
 
 ########################
 ## Run BO in parallel ##
@@ -120,38 +104,13 @@ class multiproc_optim:
 def main(args):
 
     # Data set
-    data_params = {"data_set": None, "n_splits": args.cv_splits, "seed": args.cv_seed}
+    data_params = {"data_set": None}
 
     # Model parameters
-    model_params = {
-        "hidden_sizes": args.hidden_sizes,
-        "act_func": args.act,
-        "prior_prec": None,
-        "noise_prec": None,
-    }
+    model_params = {"hidden_sizes": args.hidden_sizes, "act_func": args.act}
 
     # Training parameters
-    train_params = {
-        "num_epochs": args.epochs,
-        "batch_size": None,
-        "train_mc_samples": args.train_samples,
-        "eval_mc_samples": args.eval_samples,
-        "seed": args.train_seed,
-    }
-
-    # Optimizer parameters
-    optim_params = {
-        "learning_rate": args.lr,
-        "betas": tuple(args.betas),
-        "prec_init": args.prec_init,
-    }
-
-    bo_params = {"acq": "ei", "init_points": args.bo_init, "n_iter": args.bo_iter}
-
-    # Gaussian Process parameters
-    length_scale = [1, 2]
-    nu = 2.5  # funcs approximated by GP will be 2-differentiable
-    alpha = 1e-2
+    train_params = {"num_epochs": args.epochs, "seed": args.train_seed}
 
     multiproc_func = multiproc_optim(
         method=args.method,
@@ -161,28 +120,18 @@ def main(args):
         data_params=data_params,
         model_params=model_params,
         train_params=train_params,
-        optim_params=optim_params,
-        evals_per_epoch=args.iters_epoch,
-        bo_params=bo_params,
-        length_scale=length_scale,
-        nu=nu,
-        alpha=alpha,
     )
 
-    start_wall_clock_time = time.time()
-    start_process_time = time.process_time()
+    start_time = time.time()
 
-    # multiproc_func("yacht0")
-    mp = multiprocessing.get_context("forkserver")  # "spawn"
+    # multiproc_func("naval10")
+    mp = multiprocessing.get_context("forkserver")
     pool = mp.Pool(processes=args.jobs)
     pool.map(multiproc_func, grid)
     pool.close()
     pool.join()
 
-    print("It took {:.2f} wall-clock secs".format(
-        time.time() - start_wall_clock_time))
-    print("It took {:.2f} process-time secs".format(
-        time.process_time() - start_process_time))
+    print("It took {:.2f}s".format(time.time() - start_time))
 
 
 if __name__ == "__main__":
@@ -198,7 +147,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "method",
         choices=["bbb", "pbp", "vadam", "dropout"],
-        help=f"Inference method. Choices are: %(choices)s",
+        help="Inference method. Choices are: %(choices)s",
     )
 
     parser.add_argument(
@@ -276,15 +225,6 @@ if __name__ == "__main__":
         default=1000,
         help="Number evals (iters) per epoch (default: %(default)s)",
     )
-
-    parser.add_argument(  # train_params[eval_mc_samples]
-        "--train-samples",
-        metavar="N",
-        type=int,
-        default=None,
-        help="Number of MC samples during training (default: %(default)s)",
-    )
-
     parser.add_argument(  # train_params[eval_mc_samples]
         "--eval-samples",
         metavar="N",
@@ -292,6 +232,13 @@ if __name__ == "__main__":
         default=100,
         help="Number of MC samples during evaluation (default: %(default)s)",
     )
+    # parser.add_argument(  # train_params[train_mc_samples]
+    #     "train-samples",
+    #     metavar="N",
+    #     type=int,
+    #     default=20,
+    #     help="Number of MC samples during training (default: %(default)s)",
+    # )
 
     # Optimizer parameters
     parser.add_argument(  # optim_params[learning_rate]

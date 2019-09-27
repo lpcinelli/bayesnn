@@ -54,28 +54,30 @@ for data_sets in ds:
                         'log_prior_prec': (-4, 4)}
 
     if data_sets in ("kin8nm", "naval", "powerplant", "wine"):
-        bbs = 128
-        bmc = 10
+        # batch size
+        bbb_batch = 128
+        bbb_mc_eval = 10
 
-        vbs = 128
-        vmc = 5
+        #
+        vadam_batch = 128
+        vadam_mc_eval = 5
     else:
-        bbs = 32
-        bmc = 20
+        bbb_batch = 32
+        bbb_mc_eval = 20
 
-        vbs = 32
-        vmc = 10
+        vadam_batch = 32
+        vadam_mc_eval = 10
 
     #######################
-    ## Load BBVI results ##
+    ## Load BBB  results ##
     #######################
 
     experiment_name = "bayesopt_bbb"
 
     # Training parameters
     train_params = {'num_epochs': 40,
-                    'batch_size': bbs,
-                    'train_mc_samples': bmc,
+                    'batch_size': bbb_batch,
+                    'train_mc_samples': bbb_mc_eval,
                     'eval_mc_samples': 100,
                     'seed': 123}
 
@@ -85,8 +87,8 @@ for data_sets in ds:
                     'prec_init': 10.0}
 
     grid_marginalize = [(data_set) for data_set in [data_sets + str(i) for i in range(20)]]
-    bll = np.zeros([len(grid_marginalize)])
-    brmse = np.zeros([len(grid_marginalize)])
+    bbm_loglike = np.zeros([len(grid_marginalize)])
+    bbm_rmse = np.zeros([len(grid_marginalize)])
 
     for i, (data_set) in enumerate(grid_marginalize):
 
@@ -104,8 +106,8 @@ for data_sets in ds:
         final_metric = pickle.load(pkl_file)
         pkl_file.close()
 
-        bll[i] = final_metric['test_pred_logloss'][-1]
-        brmse[i] = final_metric['test_pred_rmse'][-1]
+        bbm_loglike[i] = final_metric['test_pred_logloss'][-1]
+        bbm_rmse[i] = final_metric['test_pred_rmse'][-1]
 
     ########################
     ## Load Vadam results ##
@@ -115,8 +117,8 @@ for data_sets in ds:
 
     # Training parameters
     train_params = {'num_epochs': 40,
-                    'batch_size': vbs,
-                    'train_mc_samples': vmc,
+                    'batch_size': vadam_batch,
+                    'train_mc_samples': vadam_mc_eval,
                     'eval_mc_samples': 100,
                     'seed': 123}
 
@@ -126,8 +128,8 @@ for data_sets in ds:
                     'prec_init': 10.0}
 
     grid_marginalize = [(data_set) for data_set in [data_sets + str(i) for i in range(20)]]
-    vll = np.zeros([len(grid_marginalize)])
-    vrmse = np.zeros([len(grid_marginalize)])
+    vadam_loglike = np.zeros([len(grid_marginalize)])
+    vadam_rmse = np.zeros([len(grid_marginalize)])
 
     for i, (data_set) in enumerate(grid_marginalize):
 
@@ -145,23 +147,65 @@ for data_sets in ds:
         final_metric = pickle.load(pkl_file)
         pkl_file.close()
 
-        vll[i] = final_metric['test_pred_logloss'][-1]
-        vrmse[i] = final_metric['test_pred_rmse'][-1]
+        vadam_loglike[i] = final_metric['test_pred_logloss'][-1]
+        vadam_rmse[i] = final_metric['test_pred_rmse'][-1]
 
+
+
+    #############################
+    ## Load MC Dropout results ##
+    #############################
+
+    experiment_name = "bayesopt_bbb"
+
+    # Training parameters
+    train_params = {'num_epochs': 40,
+                    'batch_size': bbb_batch,
+                    'train_mc_samples': bbb_mc_eval,
+                    'eval_mc_samples': 100,
+                    'seed': 123}
+
+    # Optimizer parameters
+    optim_params = {'learning_rate': 0.01,
+                    'betas': (0.9,0.99),
+                    'prec_init': 10.0}
+
+    grid_marginalize = [(data_set) for data_set in [data_sets + str(i) for i in range(20)]]
+    mcdrop_loglike = np.zeros([len(grid_marginalize)])
+    mcdrop_rmse = np.zeros([len(grid_marginalize)])
+
+    for i, (data_set) in enumerate(grid_marginalize):
+
+        data_params['data_set'] = data_set
+        folder = folder_name(results_folder = results_folder,
+                             experiment_name = experiment_name,
+                             param_bounds = param_bounds,
+                             bo_params = bo_params,
+                             data_params = data_params,
+                             model_params = model_params,
+                             train_params = train_params,
+                             optim_params = optim_params)
+
+        pkl_file = open(os.path.join(folder, 'final_metric.pkl'), 'rb')
+        final_metric = pickle.load(pkl_file)
+        pkl_file.close()
+
+        mcdrop_loglike[i] = final_metric['test_pred_logloss'][-1]
+        mcdrop_rmse[i] = final_metric['test_pred_rmse'][-1]
 
     ############################
     ## Prepare means and stds ##
     ############################
 
-    bllm = -np.mean(bll, axis=0)
-    blls = np.std(bll, axis=0)/np.sqrt(20)
-    brmsem = np.mean(brmse, axis=0)
-    brmses = np.std(brmse, axis=0)/np.sqrt(20)
+    mcdrop_loglikem = -np.mean(mcdrop_loglike, axis=0)
+    mcdrop_loglikes = np.std(mcdrop_loglike, axis=0)/np.sqrt(20)
+    bbm_rmsem = np.mean(bbm_rmse, axis=0)
+    bbm_rmses = np.std(bbm_rmse, axis=0)/np.sqrt(20)
 
-    vllm = -np.mean(vll, axis=0)
-    vlls = np.std(vll, axis=0)/np.sqrt(20)
-    vrmsem = np.mean(vrmse, axis=0)
-    vrmses = np.std(vrmse, axis=0)/np.sqrt(20)
+    vadam_loglikem = -np.mean(vadam_loglike, axis=0)
+    vadam_loglikes = np.std(vadam_loglike, axis=0)/np.sqrt(20)
+    vadam_rmsem = np.mean(vadam_rmse, axis=0)
+    vadam_rmses = np.std(vadam_rmse, axis=0)/np.sqrt(20)
 
     pval_test = 0.01
     n_decimals = 2
@@ -171,29 +215,29 @@ for data_sets in ds:
     ## t-test for log-liklihood ##
     ##############################
 
-    if vllm > bllm:
+    if vadam_loglikem > bbm_loglikem:
         # compare to vadam
-        _, p_value_b = stats.ttest_rel(vll, bll)
+        _, p_value_b = stats.ttest_rel(vadam_loglike, bbm_loglike)
 
         sig_b = p_value_b <= pval_test
 
-        print("\n\n\n", data_sets, ", Vadam is best with ll = ", fmt_str.format(vllm), "$\pm$", fmt_str.format(vlls))
+        print("\n\n\n", data_sets, ", Vadam is best with ll = ", fmt_str.format(vadam_loglikem), "$\pm$", fmt_str.format(vadam_loglikes))
         if sig_b:
-            print("BBVI is significantly worse with ll = ", fmt_str.format(bllm), "$\pm$", fmt_str.format(blls), ", pval = ", p_value_b)
+            print("BBVI is significantly worse with ll = ", fmt_str.format(bbm_loglikem), "$\pm$", fmt_str.format(bbm_loglikes), ", pval = ", p_value_b)
         else:
-            print("BBVI is comparable with ll = ", fmt_str.format(bllm), "$\pm$", fmt_str.format(blls), ", pval = ", p_value_b)
+            print("BBVI is comparable with ll = ", fmt_str.format(bbm_loglikem), "$\pm$", fmt_str.format(bbm_loglikes), ", pval = ", p_value_b)
 
-    elif bllm > vllm:
+    elif bbm_loglikem > vadam_loglikem:
         # compare to bbvi
-        _, p_value_v = stats.ttest_rel(bll, vll)
+        _, p_value_v = stats.ttest_rel(bbm_loglike, vadam_loglike)
 
         sig_v = p_value_v <= pval_test
 
-        print("\n\n\n", data_sets, ", BBVI is best with ll = ", fmt_str.format(bllm), "$\pm$", fmt_str.format(blls))
+        print("\n\n\n", data_sets, ", BBVI is best with ll = ", fmt_str.format(bbm_loglikem), "$\pm$", fmt_str.format(bbm_loglikes))
         if sig_v:
-            print("Vadam is significantly worse with ll = ", fmt_str.format(vllm), "$\pm$", fmt_str.format(vlls), ", pval = ", p_value_v)
+            print("Vadam is significantly worse with ll = ", fmt_str.format(vadam_loglikem), "$\pm$", fmt_str.format(vadam_loglikes), ", pval = ", p_value_v)
         else:
-            print("Vadam is comparable with ll = ", fmt_str.format(vllm), "$\pm$", fmt_str.format(vlls), ", pval = ", p_value_v)
+            print("Vadam is comparable with ll = ", fmt_str.format(vadam_loglikem), "$\pm$", fmt_str.format(vadam_loglikes), ", pval = ", p_value_v)
 
     else:
         print("error!")
@@ -202,29 +246,29 @@ for data_sets in ds:
     ## t-test for rmse ##
     #####################
 
-    if vrmsem < brmsem :
+    if vadam_rmsem < bbm_rmsem :
         # compare to vadam
-        _, p_value_b = stats.ttest_rel(vrmse, brmse)
+        _, p_value_b = stats.ttest_rel(vadam_rmse, bbm_rmse)
 
         sig_b = p_value_b <= pval_test
 
-        print("\n", data_sets, ", Vadam is best with rmse = ", fmt_str.format(vrmsem), "$\pm$", fmt_str.format(vrmses))
+        print("\n", data_sets, ", Vadam is best with rmse = ", fmt_str.format(vadam_rmsem), "$\pm$", fmt_str.format(vadam_rmses))
         if sig_b:
-            print("BBVI is significantly worse with rmse = ", fmt_str.format(brmsem), "$\pm$", fmt_str.format(brmses), ", pval = ", p_value_b)
+            print("BBVI is significantly worse with rmse = ", fmt_str.format(bbm_rmsem), "$\pm$", fmt_str.format(bbm_rmses), ", pval = ", p_value_b)
         else:
-            print("BBVI is comparable with rmse = ", fmt_str.format(brmsem), "$\pm$", fmt_str.format(brmses), ", pval = ", p_value_b)
+            print("BBVI is comparable with rmse = ", fmt_str.format(bbm_rmsem), "$\pm$", fmt_str.format(bbm_rmses), ", pval = ", p_value_b)
 
-    elif brmsem < vrmsem:
+    elif bbm_rmsem < vadam_rmsem:
         # compare to bbvi
-        _, p_value_v = stats.ttest_rel(brmse, vrmse)
+        _, p_value_v = stats.ttest_rel(bbm_rmse, vadam_rmse)
 
         sig_v = p_value_v <= pval_test
 
-        print("\n", data_sets, ", BBVI is best with rmse = ", fmt_str.format(brmsem), "$\pm$", fmt_str.format(brmses))
+        print("\n", data_sets, ", BBVI is best with rmse = ", fmt_str.format(bbm_rmsem), "$\pm$", fmt_str.format(bbm_rmses))
         if sig_v:
-            print("Vadam is significantly worse with rmse = ", fmt_str.format(vrmsem), "$\pm$", fmt_str.format(vrmses), ", pval = ", p_value_v)
+            print("Vadam is significantly worse with rmse = ", fmt_str.format(vadam_rmsem), "$\pm$", fmt_str.format(vadam_rmses), ", pval = ", p_value_v)
         else:
-            print("Vadam is comparable with rmse = ", fmt_str.format(vrmsem), "$\pm$", fmt_str.format(vrmses), ", pval = ", p_value_v)
+            print("Vadam is comparable with rmse = ", fmt_str.format(vadam_rmsem), "$\pm$", fmt_str.format(vadam_rmses), ", pval = ", p_value_v)
 
     else:
         print("error!")

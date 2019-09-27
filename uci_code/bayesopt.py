@@ -1,24 +1,19 @@
 import copy
 import math
 import os
-
 # import pdb
 import pickle
+import time
+import torch
 
 from bayes_opt import BayesianOptimization
 from sklearn.gaussian_process.kernels import Matern
 
-from .experiments import (
-    ExperimentBBBMLPReg,
-    ExperimentDropoutMLPReg,
-    ExperimentVadamMLPReg,
-    ExperimentVpropMLPReg,
-)
-from .experiments_cv import (
-    CrossValExperimentBBBMLPReg,
-    CrossValExperimentDropoutMLPReg,
-    CrossValExperimentVadamMLPReg,
-)
+from .experiments import (ExperimentBBBMLPReg, ExperimentDropoutMLPReg,
+                          ExperimentVadamMLPReg, ExperimentVpropMLPReg)
+from .experiments_cv import (CrossValExperimentBBBMLPReg,
+                             CrossValExperimentDropoutMLPReg,
+                             CrossValExperimentVadamMLPReg)
 
 #############################
 ## Define useful functions ##
@@ -85,6 +80,8 @@ def run_bayesopt(
     nu,
     alpha,
 ):
+    start_wall_clock_time = time.time()
+    start_process_time = time.process_time()
 
     experiment_name = f"{experiment_prefix}_{method}"
     gp_params = {"kernel": Matern(nu=nu, length_scale=length_scale), "alpha": alpha}
@@ -98,15 +95,14 @@ def run_bayesopt(
     def cv_exp(**kwargs):
         model_params_cv = copy.deepcopy(model_params)
         model_params_cv["noise_prec"] = math.exp(kwargs.get("log_noise_prec"))
-        model_params_cv["prior_prec"] = math.exp(kwargs.get("log_prior_prec"))
+        # model_params_cv["prior_prec"] = math.exp(kwargs.get("log_prior_prec"))
 
         #######################
         ## Define experiment ##
         #######################
 
         if method == "vadam":
-            # log_prior_prec = kwargs.get("prior_prec")
-            # model_params_cv["prior_prec"] = math.exp(log_prior_prec)
+            model_params_cv["prior_prec"] = math.exp(kwargs.get("log_prior_prec"))
 
             optim_params_cv = copy.deepcopy(optim_params)
             optim_params_cv["prec_init"] = model_params_cv["prior_prec"]
@@ -121,8 +117,7 @@ def run_bayesopt(
                 normalize_y=True,
             )
         elif method == "bbb":
-            # log_prior_prec = kwargs.get("prior_prec")
-            # model_params_cv["prior_prec"] = math.exp(log_prior_prec)
+            model_params_cv["prior_prec"] = math.exp(kwargs.get("log_prior_prec"))
 
             experiment = CrossValExperimentBBBMLPReg(
                 data_folder=data_folder,
@@ -209,7 +204,7 @@ def run_bayesopt(
     ############################################
 
     model_params_final = copy.deepcopy(model_params)
-    model_params_final["prior_prec"] = math.exp(bo.max["params"]["log_prior_prec"])
+    # model_params_final["prior_prec"] = math.exp(bo.max["params"]["log_prior_prec"])
     model_params_final["noise_prec"] = math.exp(bo.max["params"]["log_noise_prec"])
 
     #######################
@@ -218,6 +213,7 @@ def run_bayesopt(
 
     if method == "vadam":
         optim_params_final = copy.deepcopy(optim_params)
+        model_params_final["prior_prec"] = math.exp(bo.max["params"]["log_prior_prec"])
         optim_params_final["prec_init"] = model_params_final["prior_prec"]
         experiment = ExperimentVadamMLPReg(
             results_folder=results_folder,
@@ -231,6 +227,7 @@ def run_bayesopt(
             normalize_y=True,
         )
     elif method == "bbb":
+        model_params_final["prior_prec"] = math.exp(bo.max["params"]["log_prior_prec"])
         experiment = ExperimentBBBMLPReg(
             results_folder=results_folder,
             data_folder=data_folder,
@@ -263,6 +260,11 @@ def run_bayesopt(
 
     experiment.run(log_metric_history=True)
 
+
+    torch.cuda.synchronize()
+    total_wall_clock_time = time.time() - start_wall_clock_time
+    total_process_time = time.process_time() - start_process_time
+
     experiment.save(
         save_final_metric=True,
         save_metric_history=True,
@@ -272,6 +274,13 @@ def run_bayesopt(
         folder_path=folder,
     )
 
+    # with open(os.path.join(folder, "run_time.txt"), "w") as text_file:
+    #     text_file.write("{}".format(total_time))
+
+    with open(os.path.join(folder, "run_time.pkl"), "wb") as output:
+        pickle.dump({'wall_clock': total_wall_clock_time,
+                     'process_time': total_process_time},
+                    output)
 
 ##############################################################################
 ## Define function for getting final Vprop run with settings found by Vadam ##

@@ -160,7 +160,7 @@ class Experiment:
         results_folder="./results",
         data_folder=DEFAULT_DATA_FOLDER,
         use_cuda=torch.cuda.is_available(),
-        print_freq=5,
+        print_freq=13,
     ):
 
         # Store parameters
@@ -673,12 +673,14 @@ class ExperimentDropoutMLPReg(Experiment):
         )
 
         # Initialize model
+        lengthscale = 1e-2
         self.model = DropoutMLP(
             input_size=self.data.num_features,
             hidden_sizes=model_params["hidden_sizes"],
             output_size=self.data.num_classes,
             act_func=model_params["act_func"],
-            prior_prec=model_params["prior_prec"],
+            prior_prec=lengthscale,
+            # prior_prec=model_params["prior_prec"],
             drop_prob=model_params["dropout"],
         )
         if self.use_cuda:
@@ -709,7 +711,8 @@ class ExperimentDropoutMLPReg(Experiment):
         N = self.data.get_train_size()
         weight_decay = (
             (1 - model_params["dropout"])
-            * (model_params["prior_prec"] ** 2)
+            # * (model_params["prior_prec"] ** 2)
+            * (lengthscale** 2)
             / (2 * tau * N)
         )
 
