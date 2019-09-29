@@ -11,7 +11,6 @@ sys.setrecursionlimit(10000)
 
 class PBP_net:
     def __init__(self, input_size, hidden_sizes, output_size=1):
-
         """
             Constructor for the class implementing a Bayesian neural network
             trained with the probabilistic back propagation method.
@@ -23,11 +22,6 @@ class PBP_net:
             @param n_epochs     Numer of epochs for which to train the
                                 network. The recommended value 40 should be
                                 enough.
-            @param normalize    Whether to normalize the input features. This
-                                is recommended unles the input vector is for
-                                example formed by binary features (a
-                                fingerprint). In that case we do not recommend
-                                to normalize the features.
         """
 
         # We construct the network
@@ -36,7 +30,8 @@ class PBP_net:
                 "Current PBP implementation only works for regression with output size equals 1"
             )
 
-        n_units_per_layer = np.concatenate(([input_size], hidden_sizes, [output_size]))
+        n_units_per_layer = np.concatenate(
+            ([input_size], hidden_sizes, [output_size]))
         self.pbp_instance = pbp.PBP(n_units_per_layer)
 
     def set_y_mean_std(self, mean_y_train, std_y_train):
@@ -47,7 +42,6 @@ class PBP_net:
         self.std_X_train = std_x_train
 
     def step(self, X_train, y_train, n_epochs=1):
-
         """
             Function that re-trains the network on some data.
 
@@ -64,7 +58,6 @@ class PBP_net:
         return self.pbp_instance.logZ
 
     def predict(self, X_test):
-
         """
             Function for making predictions with the Bayesian neural network.
 
@@ -78,20 +71,20 @@ class PBP_net:
 
         """
 
-        # X_test MUST be normalized
+        # X_test MUST be normalized (this is done within the uci-code.Experiment.run())
         X_test = np.array(X_test, ndmin=2)
 
         # We compute the predictive mean and variance for the target variables
         # of the test data
 
-        m, v, v_noise = self.pbp_instance.get_predictive_mean_and_variance(X_test)
+        m, v, v_noise = self.pbp_instance.get_predictive_mean_and_variance(
+            X_test)
 
         # We are done!
 
         return m, v, v_noise
 
     def predict_deterministic(self, X_test):
-
         """
             Function for making predictions with the Bayesian neural network.
 
@@ -104,6 +97,7 @@ class PBP_net:
 
         X_test = np.array(X_test, ndmin=2)
 
+        # this is done within the uci-code.Experiment.run()
         # We normalize the test set
         # X_test = (X_test - np.full(X_test.shape, self.mean_X_train)) / np.full(
         #     X_test.shape, self.std_X_train
@@ -117,7 +111,6 @@ class PBP_net:
         return o
 
     def sample_weights(self):
-
         """
             Function that draws a sample from the posterior approximation
             to the weights distribution.
@@ -127,7 +120,6 @@ class PBP_net:
         self.pbp_instance.sample_w()
 
     def save_to_file(self, filename):
-
         """
             Function that stores the network in a file.
 
@@ -148,14 +140,12 @@ class PBP_net:
 
 
 def load_PBP_net_from_file(filename):
-
     """
         Function that load a network from a file.
 
         @param filename   The name of the file.
 
     """
-
     def load_object(filename):
 
         with gzip.GzipFile(filename, "rb") as source:
