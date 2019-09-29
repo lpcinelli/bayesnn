@@ -1,3 +1,6 @@
+
+import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 
@@ -81,3 +84,76 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+
+def plot_1d_results(data, data_generator, predictions=None, method=None):
+    '''Plot the data samples from data, the 1d data defined by `data_generator` (mean and std skirt)
+     and (if available) the mean and variance of the model's predictions. Skirts correspond to 1 std
+     deviation.
+
+     Args:
+         data (iterable): 1d data samples [x_train, y_train]
+         data_generator (dict): {'mean': func that spans x_mean, 'std': func that spans x_std}.
+            Formula: x = x_mean + x_std*N(0,1)
+        predictions (tuple): (model input, model predictions, noise variance). Types and shapes:
+            input: numpy.array
+            predictions: numpy.array (nb_mc_samples, nb_data_samples)
+            noise variance: float
+    '''
+
+    train_x = np.arange(data[0].min().item(),
+                        data[0].max().item(), 1/100)
+
+    # plot the training data distribution
+    plt.plot(train_x, data_generator['mean'](train_x), 'red', label='data mean')
+    plt.fill_between(train_x,
+                     data_generator['mean'](train_x) - data_generator['std'](train_x),
+                     data_generator['mean'](train_x) + data_generator['std'](train_x),
+                     color='orange', alpha=1, label='data 1-std')
+    plt.plot(data[0], data[1], 'r.', alpha=0.2, label='train sampl')
+
+    # plot the model distribution
+    # TODO
+    if predictions is not None:
+        if method == 'pbp':
+            raise NotImplementedError
+        if method not in ['bbb', 'vadam', 'mcdropout']:
+            raise ValueError('incorrect choice of training method {}'.format(method))
+
+        x = predictions[0]
+        y_means = predictions[1].mean(axis=0)
+        y_vars = predictions[1].var(axis=0)**0.5
+
+        # TODO: So far implemented models do not have support for heteroskedastic noise so we assume
+        # `heteroskedastic_part` to be zero. If this is ever implemented, computation from std noise
+        # predictions would be: (noises**2).mean(axis = 0)**0.5
+
+        heteroskedastic_part = np.zeros_like(y_vars)
+        homoskedastic_part = predictions[2] if len(predictions) == 3 else 0
+
+        aleatoric = heteroskedastic_part + homoskedastic_part
+        epistemic = predictions[1].var(axis = 0)**0.5
+
+        aleatoric = np.minimum(aleatoric, 10e3)
+        epistemic = np.minimum(epistemic, 10e3)
+
+        total_unc = (aleatoric**2 + epistemic**2)**0.5
+
+
+        plt.plot(x, y_means, label='model mean')
+        plt.fill_between(x,
+                         y_means - aleatoric,
+                         y_means + aleatoric,
+                         color='g', alpha = 0.2, label='aleatoric')
+        plt.fill_between(x,
+                         y_means - total_unc,
+                         y_means - aleatoric,
+                         color='b', alpha = 0.2, label='epistemic')
+        plt.fill_between(x,
+                         y_means + aleatoric,
+                         y_means + total_unc,
+                         color='b', alpha = 0.2)
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.ylim([-3,2])
+    plt.legend()
