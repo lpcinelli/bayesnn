@@ -487,9 +487,17 @@ class CrossValExperimentVadamMLPReg(CrossValExperiment):
         )
 
         # Define prediction function
-        def prediction(x):
-            logits = self.model(x)
-            return logits
+        def prediction(x, train=True):
+            if train:
+                logits = self.model(x)
+                return logits
+
+            return self.optimizer.get_mc_predictions(
+                self.model.forward,
+                inputs=x,
+                mc_samples=self.train_params["eval_mc_samples"],
+                ret_numpy=False,
+            )
 
         self.prediction = prediction
 
@@ -559,12 +567,7 @@ class CrossValExperimentVadamMLPReg(CrossValExperiment):
             x_train = (x_train - self.x_means) / self.x_stds
 
         # Get train predictions
-        mu_list = self.optimizer.get_mc_predictions(
-            self.model.forward,
-            inputs=x_train,
-            mc_samples=self.train_params["eval_mc_samples"],
-            ret_numpy=False,
-        )
+        mu_list = self.prediction(x_train, train=False)
 
         # Unnormalize train predictions
         if self.normalize_y:
@@ -598,12 +601,7 @@ class CrossValExperimentVadamMLPReg(CrossValExperiment):
             x_test = (x_test - self.x_means) / self.x_stds
 
         # Get test predictions
-        mu_list = self.optimizer.get_mc_predictions(
-            self.model.forward,
-            inputs=x_test,
-            mc_samples=self.train_params["eval_mc_samples"],
-            ret_numpy=False,
-        )
+        mu_list = self.prediction(x_test, train=False)
 
         # Unnormalize test predictions
         if self.normalize_y:
@@ -686,9 +684,10 @@ class CrossValExperimentBBBMLPReg(CrossValExperiment):
         )
 
         # Define prediction function
-        def prediction(x):
+        def prediction(x, train=True):
+            nb_samples = self.train_params["train_mc_samples"] if train else self.train_params["eval_mc_samples"]
             mu_list = [
-                self.model(x) for _ in range(self.train_params["train_mc_samples"])
+                self.model(x) for _ in range(nb_samples)
             ]
             return mu_list
 
@@ -764,9 +763,7 @@ class CrossValExperimentBBBMLPReg(CrossValExperiment):
             x_train = (x_train - self.x_means) / self.x_stds
 
         # Get train predictions
-        mu_list = [
-            self.model(x_train) for _ in range(self.train_params["eval_mc_samples"])
-        ]
+        mu_list = self.prediction(x_train, train=False)
 
         # Unnormalize train predictions
         if self.normalize_y:
@@ -800,9 +797,7 @@ class CrossValExperimentBBBMLPReg(CrossValExperiment):
             x_test = (x_test - self.x_means) / self.x_stds
 
         # Get test predictions
-        mu_list = [
-            self.model(x_test) for _ in range(self.train_params["eval_mc_samples"])
-        ]
+        mu_list = self.prediction(x_test, train=False)
 
         # Unnormalize test predictions
         if self.normalize_y:
@@ -884,9 +879,10 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         )
 
         # Define prediction function
-        def prediction(x):
+        def prediction(x, train=True):
+            nb_samples = self.train_params["train_mc_samples"] if train else self.train_params["eval_mc_samples"]
             mu_list = [
-                self.model(x) for _ in range(self.train_params["train_mc_samples"])
+                self.model(x) for _ in range(nb_samples)
             ]
             return mu_list
 
@@ -972,9 +968,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
             x_train = (x_train - self.x_means) / self.x_stds
 
         # Get train predictions
-        mu_list = [
-            self.model(x_train) for _ in range(self.train_params["eval_mc_samples"])
-        ]
+        mu_list = self.prediction(x_train, train=False)
 
         # Unnormalize train predictions
         if self.normalize_y:
@@ -999,9 +993,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
             x_test = (x_test - self.x_means) / self.x_stds
 
         # Get test predictions
-        mu_list = [
-            self.model(x_test) for _ in range(self.train_params["eval_mc_samples"])
-        ]
+        mu_list = self.prediction(x_test, train=False)
 
         # Unnormalize test predictions
         if self.normalize_y:
