@@ -154,6 +154,7 @@ class Experiment:
         model_params,
         train_params,
         optim_params,
+        data_params=None,
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
@@ -186,7 +187,7 @@ class Experiment:
         self.objective_history = []
 
         # Initialize data
-        self.data = Dataset(data_set=data_set, data_folder=data_folder)
+        self.data = Dataset(data_set=data_set, data_folder=data_folder, **data_params)
 
         ## All subclasses should override:
 
@@ -452,24 +453,28 @@ class ExperimentBBBMLPReg(Experiment):
         model_params,
         train_params,
         optim_params,
+        data_params=None,
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
         results_folder="./results",
         data_folder=DEFAULT_DATA_FOLDER,
         use_cuda=torch.cuda.is_available(),
+        print_freq=13
     ):
         super(type(self), self).__init__(
             data_set,
             model_params,
             train_params,
             optim_params,
+            data_params,
             evals_per_epoch,
             normalize_x,
             normalize_y,
             results_folder,
             data_folder,
             use_cuda,
+            print_freq
         )
 
         # Define name for experiment class
@@ -639,24 +644,28 @@ class ExperimentDropoutMLPReg(Experiment):
         model_params,
         train_params,
         optim_params,
+        data_params=None,
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
         results_folder="./results",
         data_folder=DEFAULT_DATA_FOLDER,
         use_cuda=torch.cuda.is_available(),
+        print_freq=13
     ):
         super(type(self), self).__init__(
             data_set,
             model_params,
             train_params,
             optim_params,
+            data_params,
             evals_per_epoch,
             normalize_x,
             normalize_y,
             results_folder,
             data_folder,
             use_cuda,
+            print_freq
         )
 
         # Define name for experiment class
@@ -827,24 +836,28 @@ class ExperimentVadamMLPReg(Experiment):
         model_params,
         train_params,
         optim_params,
+        data_params=None,
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
         results_folder="./results",
         data_folder=DEFAULT_DATA_FOLDER,
         use_cuda=torch.cuda.is_available(),
+        print_freq=13
     ):
         super(type(self), self).__init__(
             data_set,
             model_params,
             train_params,
             optim_params,
+            data_params,
             evals_per_epoch,
             normalize_x,
             normalize_y,
             results_folder,
             data_folder,
             use_cuda,
+            print_freq
         )
 
         # Define name for experiment class
@@ -1015,24 +1028,28 @@ class ExperimentVpropMLPReg(Experiment):
         model_params,
         train_params,
         optim_params,
+        data_params=None,
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
         results_folder="./results",
         data_folder=DEFAULT_DATA_FOLDER,
         use_cuda=torch.cuda.is_available(),
+        print_freq=13
     ):
         super(type(self), self).__init__(
             data_set,
             model_params,
             train_params,
             optim_params,
+            data_params,
             evals_per_epoch,
             normalize_x,
             normalize_y,
             results_folder,
             data_folder,
             use_cuda,
+            print_freq
         )
 
         # Define name for experiment class
