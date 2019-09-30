@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 import torch
 from torch.optim import Adam
+from ast import literal_eval
 
 from .. import metrics
 from ..callbacks import Timemeasure
@@ -142,6 +143,34 @@ def load_objective_history(
     return objective_history
 
 
+###################################################
+## Define for extracting params from folder path ##
+###################################################
+
+
+def get_params(exp_name, load_folder):
+    subfolder_names = load_folder.split('/')
+    pos_list = [idx for idx, name in enumerate(subfolder_names) if name == exp_name]
+    if pos_list == 0:
+        raise FileNotFoundError('No experiment folder named {}'.format(exp_name))
+
+    idx = pos_list[0]
+    names = names[idx+1:]
+    names = [name.split('|') for name in names]
+    params = [param for subname in names for param in subname]
+    params[-1] = params[-1][:-1]
+
+    config = {}
+    for param in params:
+        name, val = param.split(':')
+        try:
+            config[name] = literal_eval(val)
+        except ValueError:
+            config[name] = val
+
+    return config
+
+
 ######################################
 ## Define abstract experiment class ##
 ######################################
@@ -154,7 +183,7 @@ class Experiment:
         model_params,
         train_params,
         optim_params,
-        data_params=None,
+        data_params={},
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
@@ -440,6 +469,37 @@ class Experiment:
             self.objective_history = pickle.load(pkl_file)
             pkl_file.close()
 
+    @classmethod
+    def from_folder(cls, method, exp_name, load_folder, normalize=True):
+        params = get_params(exp_name, load_folder)
+
+        optimized_params = pickle.load(open(os.path.join(load_folder, "res_max.pkl"), "rb"))
+        params['prior_prec'] = np.exp(optimized_params["max_params"]["log_prior_prec"])
+        params['noise_prec'] = np.exp(optimized_params["max_params"]["log_noise_prec"])
+
+        # TODO: arrange params into xxx_params
+        model_keys = ['hidden_sizes', 'act_func', 'dropout', 'prior_prec', 'noise_prec', 'dropout']
+        train_keys = ['batch_size', 'num_epochs', 'seed', 'train_mc_samples', 'eval_mc_samples',  'batch_size']
+        optim_keys = ['learning_rate', 'betas', 'prec_init']
+
+        model_params = {k: params[k] for k in model_keys if k in params}
+        train_params = {k: params[k] for k in train_keys if k in params}
+        optim_params = {k: params[k] for k in optim_keys if k in params}
+
+        data_set = params['data_set']
+
+        exp_class = {'bbb': ExperimentBBBMLPReg,
+                     'mcdropout': ExperimentDropoutMLPReg,
+                     'vadam': ExperimentVadamMLPReg}.get(method, None)
+
+        exp = exp_class(data_set, model_params, train_params, optim_params, evals_per_epoch=1000,
+                        normalize_x=normalize, normalize_y=normalize)
+        exp.load()
+        return exp
+        # exp.train_params["num_epochs"] = nb_epochs
+        # change save dir (maybe make a subfolder?)
+
+
 
 #####################################
 ## Define experiment class for BBB ##
@@ -453,7 +513,7 @@ class ExperimentBBBMLPReg(Experiment):
         model_params,
         train_params,
         optim_params,
-        data_params=None,
+        data_params={},
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
@@ -641,7 +701,7 @@ class ExperimentDropoutMLPReg(Experiment):
         model_params,
         train_params,
         optim_params,
-        data_params=None,
+        data_params={},
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
@@ -830,7 +890,7 @@ class ExperimentVadamMLPReg(Experiment):
         model_params,
         train_params,
         optim_params,
-        data_params=None,
+        data_params={},
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
@@ -1021,7 +1081,7 @@ class ExperimentVpropMLPReg(Experiment):
         model_params,
         train_params,
         optim_params,
-        data_params=None,
+        data_params={},
         evals_per_epoch=1,
         normalize_x=False,
         normalize_y=False,
