@@ -36,6 +36,7 @@ class ExperimentPBPReg:
         data_set,
         model_params,
         train_params,
+        data_params={},
         experiment_prefix,
         normalize_x=True,
         normalize_y=True,
@@ -70,7 +71,7 @@ class ExperimentPBPReg:
         # self.objective_history = []
 
         # Initialize data
-        self.data = Dataset(data_set=data_set, data_folder=data_folder)
+        self.data = Dataset(data_set=data_set, data_folder=data_folder, **data_params)
 
         # Define folder name for results
         self.folder_name = folder_name(
@@ -106,7 +107,6 @@ class ExperimentPBPReg:
         )
 
     def _evaluate_model(self, metric_dict, x_train, y_train, x_test, y_test):
-
         # Normalize train x
         if self.normalize_x:
             x_train = (x_train - self.x_means) / self.x_stds
