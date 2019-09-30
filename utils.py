@@ -97,7 +97,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def plot_1d_results(data, data_generator, predictions=None, method=None):
+def plot_1d_results(data, data_generator, predictions=None, method=None, nb_std=1):
     '''Plot the data samples from data, the 1d data defined by `data_generator` (mean and std skirt)
      and (if available) the mean and variance of the model's predictions. Skirts correspond to 1 std
      deviation.
@@ -110,30 +110,32 @@ def plot_1d_results(data, data_generator, predictions=None, method=None):
             input: numpy.array
             predictions: numpy.array (nb_mc_samples, nb_data_samples)
             noise variance: float
+        nb_std (int): nb of standard deviations the uncertainty skirts in plot should be
     '''
-
-    train_x = np.arange(data[0].min().item(),
-                        data[0].max().item(), 1/100)
+    x_domain = data[0].squeeze()
+    train_x = np.arange(x_domain.min().item(),
+                        x_domain.max().item(), 1/100)
 
     # plot the training data distribution
     plt.plot(train_x, data_generator['mean'](train_x), 'red', label='data mean')
     plt.fill_between(train_x,
-                     data_generator['mean'](train_x) - data_generator['std'](train_x),
-                     data_generator['mean'](train_x) + data_generator['std'](train_x),
-                     color='orange', alpha=1, label='data 1-std')
-    plt.plot(data[0], data[1], 'r.', alpha=0.2, label='train sampl')
+                     data_generator['mean'](train_x) - nb_std*data_generator['std'](train_x),
+                     data_generator['mean'](train_x) + nb_std*data_generator['std'](train_x),
+                     color='orange', alpha=0.8, label='data 1-std')
+    plt.plot(x_domain, data[1], 'r.', alpha=0.5, label='train sampl')
 
     # plot the model distribution
-    # TODO
     if predictions is not None:
-        if method == 'pbp':
-            raise NotImplementedError
-        if method not in ['bbb', 'vadam', 'mcdropout']:
+        if method not in ['bbb', 'vadam', 'mcdropout', 'pbp']:
             raise ValueError('incorrect choice of training method {}'.format(method))
+        if method == 'pbp':
+            y_means = predictions[1][0]
+            y_vars = predictions[1][1]
+        else:
+            y_means = predictions[1].mean(axis=0)
+            y_vars = predictions[1].var(axis=0)**0.5
 
-        x = predictions[0]
-        y_means = predictions[1].mean(axis=0)
-        y_vars = predictions[1].var(axis=0)**0.5
+        x = predictions[0].squeeze()
 
         # TODO: So far implemented models do not have support for heteroskedastic noise so we assume
         # `heteroskedastic_part` to be zero. If this is ever implemented, computation from std noise
@@ -143,7 +145,7 @@ def plot_1d_results(data, data_generator, predictions=None, method=None):
         homoskedastic_part = predictions[2] if len(predictions) == 3 else 0
 
         aleatoric = heteroskedastic_part + homoskedastic_part
-        epistemic = predictions[1].var(axis = 0)**0.5
+        epistemic = y_vars
 
         aleatoric = np.minimum(aleatoric, 10e3)
         epistemic = np.minimum(epistemic, 10e3)
@@ -153,18 +155,18 @@ def plot_1d_results(data, data_generator, predictions=None, method=None):
 
         plt.plot(x, y_means, label='model mean')
         plt.fill_between(x,
-                         y_means - aleatoric,
-                         y_means + aleatoric,
-                         color='g', alpha = 0.2, label='aleatoric')
+                         y_means - nb_std*aleatoric,
+                         y_means + nb_std*aleatoric,
+                         color='g', alpha = 0.4, label='aleatoric')
         plt.fill_between(x,
-                         y_means - total_unc,
-                         y_means - aleatoric,
-                         color='b', alpha = 0.2, label='epistemic')
+                         y_means - nb_std*total_unc,
+                         y_means - nb_std*aleatoric,
+                         color='b', alpha = 0.4, label='epistemic')
         plt.fill_between(x,
-                         y_means + aleatoric,
-                         y_means + total_unc,
-                         color='b', alpha = 0.2)
+                         y_means + nb_std*aleatoric,
+                         y_means + nb_std*total_unc,
+                         color='b', alpha=0.4)
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.ylim([-3,2])
+    # plt.ylim([-3,2])
     plt.legend()
