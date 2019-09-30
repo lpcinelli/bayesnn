@@ -3,6 +3,17 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
+import seaborn as sns
+
+sns.set('paper', 'white', 'colorblind', font_scale=2.2,
+        rc={'lines.linewidth': 2,
+            'lines.markersize': 10,
+            'figure.figsize': (12.0, 10.0),
+            'image.interpolation': 'nearest',
+            'image.cmap': 'gray',
+            'text.usetex' : True,
+            }
+        )
 
 # Link Functions
 
