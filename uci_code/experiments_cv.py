@@ -890,7 +890,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
 
         # Define objective ?
         def objective(mu_list, y):
-            return metrics.mc_mse(mu_list, y)
+            return 0.5*metrics.mc_mse(mu_list, y)
             # return metrics.avneg_elbo_gaussian(mu_list, y, tau = self.model_params['noise_prec'], train_set_size = self.data.get_current_train_size(), kl = self.model.kl_divergence())
 
         self.objective = objective
