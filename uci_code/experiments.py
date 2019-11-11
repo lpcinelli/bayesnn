@@ -12,6 +12,8 @@ from ..datasets import DEFAULT_DATA_FOLDER, Dataset
 from ..models import BNN, MLP, DropoutMLP
 from ..vadam.optimizers import Vadam, Vprop
 
+available_optim = {'sgd': torch.optim.SGD, 'adam': torch.optim.Adam}
+
 ###############################################################################
 ## Define function that specify folder naming convention for storing results ##
 ###############################################################################
@@ -250,6 +252,8 @@ class Experiment:
         seed = self.train_params["seed"]
         callback.on_begin()
 
+        best_loss = float('inf')
+
         # Set random seed
         torch.manual_seed(seed)
         if self.use_cuda:
@@ -287,7 +291,6 @@ class Experiment:
 
         # Train model
         for epoch in range(num_epochs):
-
             callback.on_epoch_begin(epoch)
 
             # Set model in training mode
@@ -342,6 +345,9 @@ class Experiment:
             # Compute and store average objective from last epoch
             self.objective_history.append(np.mean(batch_objective))
 
+            if batch_objective[-1] < best_loss:
+                best_loss = batch_objective[-1]
+
             callback.on_step_end()
 
             if log_metric_history:
@@ -365,6 +371,7 @@ class Experiment:
         with torch.no_grad():
             self._evaluate_model(self.final_metric, x_train, y_train, x_test, y_test)
 
+        return best_loss
 
     def _evaluate_model(self, metric_dict, x_train, y_train, x_test, y_test):
 
@@ -381,7 +388,7 @@ class Experiment:
         # Print average objective from last epoch
         msg = [
             "Dataset: {:12s}, Epoch [{:2d}/{:2d}], Loss: {:.4f} ".format(
-                self.data_params["data_set"],
+                self.data_set,
                 epoch + 1,
                 self.train_params["num_epochs"],
                 self.objective_history[-1],
@@ -562,6 +569,11 @@ class ExperimentBBBMLPReg(Experiment):
         if use_cuda:
             self.model = self.model.cuda()
 
+        if self.model_params["noise_prec"] is None:
+            self.log_noise = self.model.log_noise
+        else:
+            self.log_noise = torch.tensor(self.model_params["noise_prec"], requires_grad=False).log()
+
         # Define prediction function
         def prediction(x, train=True):
             nb_samples = self.train_params["train_mc_samples"] if train else self.train_params["eval_mc_samples"]
@@ -577,7 +589,7 @@ class ExperimentBBBMLPReg(Experiment):
             return metrics.avneg_elbo_gaussian(
                 mu_list,
                 y,
-                tau=self.model_params["noise_prec"],
+                tau=torch.exp(self.log_noise),
                 train_set_size=self.data.get_train_size(),
                 kl=self.model.kl_divergence(),
             )
@@ -585,11 +597,10 @@ class ExperimentBBBMLPReg(Experiment):
         self.objective = objective
 
         # Initialize optimizer
-        self.optimizer = Adam(
+        self.optimizer = available_optim[optim_params["optim"]](
             self.model.parameters(),
-            lr=optim_params["learning_rate"],
-            betas=optim_params["betas"],
-            eps=1e-8,
+            optim_params["learning_rate"], #lr
+            optim_params["betas"], # beta(s)
         )
 
         # Initialize metric history
@@ -614,9 +625,10 @@ class ExperimentBBBMLPReg(Experiment):
 
         # Unnormalize noise precision
         if self.normalize_y:
-            tau = self.model_params["noise_prec"] / (self.y_std ** 2)
+            tau = torch.exp(self.log_noise) / (self.y_std ** 2)
         else:
-            tau = self.model_params["noise_prec"]
+            tau = torch.exp(self.log_noise)
+
 
         # Normalize train x
         if self.normalize_x:
@@ -739,18 +751,22 @@ class ExperimentDropoutMLPReg(Experiment):
         )
 
         # Initialize model
-        lengthscale = 1e-2
+        # lengthscale = 1e-2
+        lengthscale = np.sqrt(model_params["prior_prec"])
         self.model = DropoutMLP(
             input_size=self.data.num_features,
             hidden_sizes=model_params["hidden_sizes"],
             output_size=self.data.num_classes,
             act_func=model_params["act_func"],
-            prior_prec=lengthscale,
-            # prior_prec=model_params["prior_prec"],
             drop_prob=model_params["dropout"],
         )
         if self.use_cuda:
             self.model = self.model.cuda()
+
+        # if self.model_params["noise_prec"] is None:
+        #     self.log_noise = self.model.log_noise
+        # else:
+        #     self.log_noise = torch.tensor(self.model_params["noise_prec"], requires_grad=False).log()
 
         # Define prediction function
         def prediction(x, train=True):
@@ -764,11 +780,16 @@ class ExperimentDropoutMLPReg(Experiment):
 
         # Define objective ?
         def objective(mu_list, y):
-            return metrics.mc_mse(mu_list, y)
+            return 0.5*metrics.mc_mse(mu_list, y)
+            # tau=torch.tensor(self.model_params["noise_prec"])
+            # return 0.5*torch.mean((mu_list[0] - y)**2)
+            # return 0.5*tau*torch.mean((mu_list[0] - y)**2)
+            # return metrics.avneg_loglik_gaussian(
+            #     mu_list[0], y, tau=torch.tensor(self.model_params["noise_prec"]))
             # return metrics.avneg_elbo_gaussian(
             #   mu_list, y, tau=self.model_params['noise_prec'],
-            #   train_set_size = self.data.get_current_train_size(),
-            #   kl = self.model.kl_divergence()
+            #   train_set_size = self.data.get_train_size(),
+            #   kl = 0.0
             # )
 
         self.objective = objective
@@ -776,19 +797,13 @@ class ExperimentDropoutMLPReg(Experiment):
         # Initialize optmizer
         tau = model_params["noise_prec"]
         N = self.data.get_train_size()
-        weight_decay = (
-            (1 - model_params["dropout"])
-            # * (model_params["prior_prec"] ** 2)
-            * (lengthscale ** 2)
-            / (2 * tau * N)
-        )
+        weight_decay = (1 - model_params["dropout"]) * lengthscale ** 2 / (2 * tau * N)
 
-        self.optimizer = Adam(
+        self.optimizer = available_optim[optim_params["optim"]](
             self.model.parameters(),
-            lr=optim_params["learning_rate"],
-            betas=optim_params["betas"],
-            weight_decay=weight_decay,
-            eps=1e-8,
+            optim_params["learning_rate"],
+            optim_params["betas"],
+            weight_decay=weight_decay
         )
         # Initialize metric history
         self.metric_history = dict(
@@ -812,9 +827,9 @@ class ExperimentDropoutMLPReg(Experiment):
 
         # Unnormalize noise precision
         if self.normalize_y:
-            tau = self.model_params["noise_prec"] / (self.y_std ** 2)
+            tau = torch.tensor(self.model_params["noise_prec"]) / (self.y_std ** 2)
         else:
-            tau = self.model_params["noise_prec"]
+            tau = torch.tensor(self.model_params["noise_prec"])
 
         # Normalize train x
         if self.normalize_x:
@@ -937,6 +952,11 @@ class ExperimentVadamMLPReg(Experiment):
         if use_cuda:
             self.model = self.model.cuda()
 
+        # if self.model_params["noise_prec"] is None:
+        #     self.log_noise = self.model.log_noise
+        # else:
+        #     self.log_noise = torch.tensor(self.model_params["noise_prec"], requires_grad=False).log()
+
         # Define prediction function
         def prediction(x, train=True):
             if train:
@@ -955,7 +975,8 @@ class ExperimentVadamMLPReg(Experiment):
         # Define objective
         def objective(mu, y):
             return metrics.avneg_loglik_gaussian(
-                mu, y, tau=self.model_params["noise_prec"]
+                mu, y, tau=torch.tensor(self.model_params["noise_prec"])
+                # mu, y, tau=torch.exp(self.log_noise)
             )
 
         self.objective = objective
@@ -993,9 +1014,11 @@ class ExperimentVadamMLPReg(Experiment):
 
         # Unnormalize noise precision
         if self.normalize_y:
-            tau = self.model_params["noise_prec"] / (self.y_std ** 2)
+            tau = torch.tensor(self.model_params['noise_prec']) / (self.y_std ** 2)
+            # tau = torch.exp(self.log_noise) / (self.y_std ** 2)
         else:
-            tau = self.model_params["noise_prec"]
+            tau = torch.tensor(self.model_params['noise_prec'])
+            # tau = torch.exp(self.log_noise)
 
         # Normalize train x
         if self.normalize_x:
@@ -1128,6 +1151,11 @@ class ExperimentVpropMLPReg(Experiment):
         if use_cuda:
             self.model = self.model.cuda()
 
+        if self.model_params["noise_prec"] is None:
+            self.log_noise = self.model.log_noise
+        else:
+            self.log_noise = torch.tensor(self.model_params["noise_prec"], requires_grad=False).log()
+
         # Define prediction function
         def prediction(x, train=True):
             if train:
@@ -1144,7 +1172,7 @@ class ExperimentVpropMLPReg(Experiment):
         # Define objective
         def objective(mu, y):
             return metrics.avneg_loglik_gaussian(
-                mu, y, tau=self.model_params["noise_prec"]
+                mu, y, tau=torch.exp(self.log_noise)
             )
 
         self.objective = objective
@@ -1182,9 +1210,9 @@ class ExperimentVpropMLPReg(Experiment):
 
         # Unnormalize noise precision
         if self.normalize_y:
-            tau = self.model_params["noise_prec"] / (self.y_std ** 2)
+            tau = torch.exp(self.log_noise) / (self.y_std ** 2)
         else:
-            tau = self.model_params["noise_prec"]
+            tau = torch.exp(self.log_noise)
 
         # Normalize train x
         if self.normalize_x:
