@@ -133,7 +133,7 @@ def plot_1d_results(data, data_generator, predictions=None, method=None, nb_std=
             y_vars = predictions[1][1]
         else:
             y_means = predictions[1].mean(axis=0)
-            y_vars = predictions[1].var(axis=0)**0.5
+            y_vars = predictions[1].var(axis=0)
 
         x = predictions[0].squeeze()
 
@@ -141,6 +141,7 @@ def plot_1d_results(data, data_generator, predictions=None, method=None, nb_std=
         # `heteroskedastic_part` to be zero. If this is ever implemented, computation from std noise
         # predictions would be: (noises**2).mean(axis = 0)**0.5
 
+        # Variance
         heteroskedastic_part = np.zeros_like(y_vars)
         homoskedastic_part = predictions[2] if len(predictions) == 3 else 0
 
@@ -150,8 +151,10 @@ def plot_1d_results(data, data_generator, predictions=None, method=None, nb_std=
         aleatoric = np.minimum(aleatoric, 10e3)
         epistemic = np.minimum(epistemic, 10e3)
 
-        total_unc = (aleatoric**2 + epistemic**2)**0.5
-
+        # Standard Deviation
+        total_unc = (aleatoric + epistemic)**0.5
+        aleatoric = aleatoric**0.5
+        epistemic = epistemic**0.5
 
         plt.plot(x, y_means, label='model mean')
         plt.fill_between(x,
