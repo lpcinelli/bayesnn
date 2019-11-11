@@ -72,13 +72,15 @@ def sigmoid_accuracy(logits, y):
 
 
 def loglik_gaussian(mu, y, tau):
-    logliks = 0.5 * (-math.log(2 * math.pi) + math.log(tau) - tau * (y - mu) ** 2)
+    logliks = 0.5 * (-math.log(2 * math.pi) + torch.log(tau) - tau *
+                     (y - mu)**2)
     loglik = torch.sum(logliks)
     return loglik
 
 
 def avneg_loglik_gaussian(mu, y, tau):
-    logliks = 0.5 * (-math.log(2 * math.pi) + math.log(tau) - tau * (y - mu) ** 2)
+    logliks = 0.5 * (-math.log(2 * math.pi) + torch.log(tau) - tau *
+                     (y - mu)**2)
     avneg_loglik = -torch.mean(logliks)
     return avneg_loglik
 
@@ -92,7 +94,8 @@ def stoch_loglik_gaussian(mu, y, tau, train_set_size):
 
 
 def loglik_bernoulli(logits, y):
-    loglik = -F.binary_cross_entropy_with_logits(logits, y.float(), reduction="sum")
+    loglik = -F.binary_cross_entropy_with_logits(
+        logits, y.float(), reduction="sum")
     return loglik
 
 
@@ -128,7 +131,6 @@ def stoch_loglik_categorical(logits, y, train_set_size):
 ## Define ELBOs ##
 ##################
 
-
 # Gaussian
 
 
@@ -145,7 +147,8 @@ def elbo_gaussian(mu_list, y, tau, train_set_size, kl):
 
 
 def avneg_elbo_gaussian(mu_list, y, tau, train_set_size, kl):
-    avneg_elbo = -elbo_gaussian(mu_list, y, tau, train_set_size, kl) / train_set_size
+    avneg_elbo = -elbo_gaussian(mu_list, y, tau, train_set_size,
+                                kl) / train_set_size
     return avneg_elbo
 
 
@@ -164,7 +167,8 @@ def elbo_bernoulli(logits_list, y, train_set_size, kl):
 
 
 def avneg_elbo_bernoulli(logits_list, y, train_set_size, kl):
-    avneg_elbo = -elbo_bernoulli(logits_list, y, train_set_size, kl) / train_set_size
+    avneg_elbo = -elbo_bernoulli(logits_list, y, train_set_size,
+                                 kl) / train_set_size
     return avneg_elbo
 
 
@@ -183,7 +187,8 @@ def elbo_categorical(logits_list, y, train_set_size, kl):
 
 
 def avneg_elbo_categorical(logits_list, y, train_set_size, kl):
-    avneg_elbo = -elbo_categorical(logits_list, y, train_set_size, kl) / train_set_size
+    avneg_elbo = -elbo_categorical(logits_list, y, train_set_size,
+                                   kl) / train_set_size
     return avneg_elbo
 
 
@@ -237,9 +242,10 @@ def sigmoid_predictive_accuracy(logits_list, y):
 
 
 def predictive_loglik_gaussian(mu_list, y, tau):
-    pred_loglik = predictive_loglik(
-        pred_list=mu_list, y=y, loglik_fn=loglik_gaussian, tau=tau
-    )
+    pred_loglik = predictive_loglik(pred_list=mu_list,
+                                    y=y,
+                                    loglik_fn=loglik_gaussian,
+                                    tau=tau)
     return pred_loglik
 
 
@@ -252,9 +258,9 @@ def predictive_avneg_loglik_gaussian(mu_list, y, tau):
 
 
 def predictive_loglik_bernoulli(logits_list, y):
-    pred_loglik = predictive_loglik(
-        pred_list=logits_list, y=y, loglik_fn=loglik_bernoulli
-    )
+    pred_loglik = predictive_loglik(pred_list=logits_list,
+                                    y=y,
+                                    loglik_fn=loglik_bernoulli)
     return pred_loglik
 
 
@@ -267,14 +273,15 @@ def predictive_avneg_loglik_bernoulli(logits_list, y):
 
 
 def predictive_loglik_categorical(logits_list, y):
-    pred_loglik = predictive_loglik(
-        pred_list=logits_list, y=y, loglik_fn=loglik_categorical
-    )
+    pred_loglik = predictive_loglik(pred_list=logits_list,
+                                    y=y,
+                                    loglik_fn=loglik_categorical)
     return pred_loglik
 
 
 def predictive_avneg_loglik_categorical(logits_list, y):
-    pred_avneg_ll = -(1 / len(y)) * predictive_loglik_categorical(logits_list, y)
+    pred_avneg_ll = -(1 / len(y)) * predictive_loglik_categorical(
+        logits_list, y)
     return pred_avneg_ll
 
 
