@@ -31,6 +31,7 @@ class BNN(nn.Module):
         act_func="relu",
         prior_prec=1.0,
         prec_init=1.0,
+        obs_noise_init=1.0,
     ):
         super(type(self), self).__init__()
         self.input_size = input_size
@@ -42,6 +43,11 @@ class BNN(nn.Module):
         else:
             self.output_size = 1
             self.squeeze_output = True
+
+        # Set observation noise (tuned as precision parameter of gaussian dist.)
+        self.log_noise = Parameter(
+            torch.Tensor(self.output_size).fill_(math.log(obs_noise_init))
+        )
 
         # Set activation function
         self.act = select_act(act_func)
@@ -154,6 +160,12 @@ class StochasticLinear(nn.Module):
         r.v. is Gaussian. Hence, we have a Gaussian init :math: `N(0,
         1/prec_init)`.
         """
+        # self.weight_mu.data.uniform_(-0.05, 0.05)
+        # self.weight_spsigma.data.uniform_(-2, -1)
+
+        # self.bias_mu.data.uniform_(-0.05, 0.05)
+        # self.bias_spsigma.data.uniform_(-2, -1)
+
         stdv = 1.0 / math.sqrt(self.weight_mu.size(1))
 
         self.weight_mu.data.uniform_(-stdv, stdv)
@@ -184,13 +196,13 @@ class StochasticLinear(nn.Module):
         # and sample with reparameterisation
         # dist = Normal(loc=self.weight_mu, scale=F.softplus(self.weight_spsigma))
 
-        self.weight = Normal(self.weight_mu, F.softplus(self.weight_spsigma)).rsample()
-        # self.weight = self.transformation(self.weight_mu, self.weight_spsigma)
+        # self.weight = Normal(self.weight_mu, F.softplus(self.weight_spsigma)).rsample()
+        weight = self.transformation(self.weight_mu, self.weight_spsigma)
         if self.bias is not None:
-            # self.bias = self.transformation(self.bias_mu, self.bias_spsigma)
-            self.bias = Normal(self.bias_mu, self.bias_spsigma).rsample()
+            bias = self.transformation(self.bias_mu, self.bias_spsigma)
+            # self.bias = Normal(self.bias_mu, self.bias_spsigma).rsample()
 
-        return F.linear(input, self.weight, self.bias)
+        return F.linear(input, weight, bias)
 
     def kl_divergence(self):
         """Compute the analytical KL divergence between current distribution and
@@ -215,45 +227,29 @@ class StochasticLinear(nn.Module):
             )
         return kl
 
-    def stoch_kl_divergence(self):
-        """Compute the analytical KL divergence between current distribution and
-        the prior. We assume the prior is a (multivariate) standard gaussian.
+    # def stoch_kl_divergence(self):
+    #     """Compute the analytical KL divergence between current distribution and
+    #     the prior. We assume the prior is a (multivariate) standard gaussian.
 
-        Returns:
-            [type] -- [description]
-        """
+    #     Returns:
+    #         [type] -- [description]
+    #     """
+    #     kl_approx = stoch_kl_gaussian(samples=self.weight,
+    #                         q_mu=self.weight_mu,
+    #                         q_sigma=F.softplus(self.weight_spsigma),
+    #                         p_mu=torch.zeros_like(self.weight_mu),
+    #                         p_sigma=torch.ones_like(self.weight_spsigma)*self.sigma_prior
+    #                         )
 
-        mu = torch.zeros_like(self.weight_mu)
-        sigma = torch.ones_like(self.weight_spsigma) * self.sigma_prior
-
-        log_prob_qw = Normal(self.weight_mu, F.softplus(self.weight_spsigma)).log_prob(
-            self.weight
-        )
-        log_prob_pw = Normal(mu, sigma).log_prob(self.weight)
-
-        kl_approx = log_prob_qw.sum() - log_prob_pw.sum()
-        # kl_approx = stoch_kl_gaussian(samples=self.weight,
-        #                               q_mu=self.weight_mu,
-        #                               q_sigma=F.softplus(self.weight_spsigma),
-        #                               p_mu=mu,
-        #                               p_sigma=sigma
-        #                               )
-
-        if self.bias is not None:
-            mu = torch.zeros_like(self.bias_mu)
-            sigma = torch.ones_like(self.bias_spsigma) * self.sigma_prior
-            log_prob_qb = Normal(self.bias_mu, F.softplus(self.bias_spsigma)).log_prob(
-                self.bias
-            )
-            log_prob_pb = Normal(mu, sigma).log_prob(self.bias)
-            kl_approx += log_prob_qb.sum() - log_prob_pb.sum()
-            # kl_approx += stoch_kl_gaussian(samples=self.bias,
-            #                                q_mu=self.bias_mu,
-            #                                q_sigma=F.softplus(self.bias_spsigma),
-            #                                p_mu=mu,
-            #                                p_sigma=sigma
-            #                                )
-        return kl_approx
+    #     if self.bias is not None:
+    #         kl_approx += stoch_kl_gaussian(
+    #                         samples=self.bias,
+    #                         q_mu=self.bias_mu,
+    #                         q_sigma=F.softplus(self.bias_spsigma),
+    #                         p_mu=torch.zeros_like(self.bias_mu),
+    #                         p_sigma=torch.ones_like(self.bias_spsigma)*self.sigma_prior
+    #                         )
+    #     return kl_approx
 
     def extra_repr(self):
         return "in_features={}, out_features={}, sigma_prior={}, sigma_init={}, bias={}".format(
