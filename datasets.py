@@ -175,14 +175,16 @@ class Dataset:
             self.num_classes = None
 
         elif data_set == 'toydata1d':
-            self.train_set = ToyData1D(root=data_folder,
-                                       data_set=data_set,
-                                       train=True,
-                                       **kwargs)
-            self.test_set = ToyData1D(root=data_folder,
-                                      data_set=data_set,
-                                      train=False,
-                                      **kwargs)
+            self.train_set = ToyData1D(
+                root=data_folder,
+                #    data_set=data_set,
+                train=True,
+                **kwargs)
+            self.test_set = ToyData1D(
+                root=data_folder,
+                #   data_set=data_set,
+                train=False,
+                **kwargs)
 
             self.task = "regression"
             self.num_features = 1
