@@ -98,4 +98,59 @@ class DropoutMLP(nn.Module):
         This behaviour is on purpose since for MC Dropout to work, dropout
         masks should be sampled both during training and testing.
         """
-        return super(DropoutMLP, self).train(mode=True)
+        return super(type(self), self).train(mode=True)
+
+    # def reg(self):
+    #     # dropout_regularizer = 2 / (tau * N)
+    #     # weight_regularizer = l**2 / (tau * N)
+    #     # weight_regularizer / dropout_regularizer = l**2 / 2
+    #     # The factor 2 should be ignored for cross-entropy loss,
+    #     # and used only for the Euclidean loss.
+
+    #     def get_layer_reg(layer, dropout):
+    #         w_reg = torch.stack([
+    #             param.norm()**2 for param in layer.parameters()
+    #         ]).sum() * self.weight_regularizer / (1 - dropout.drop_prob)
+
+    #         d_reg = dropout.drop_prob * torch.log(dropout.drop_prob) + (
+    #             1. - dropout.drop_prob) * torch.log(1. - dropout.drop_prob)
+    #         d_reg *= self.dropout_regularizer * x[0].numel()
+
+    #         return d_reg + w_reg
+
+    #     reg = 0
+    #     for layer, dropout in layers:
+    #         reg += get_layer_reg(layers, dropout)
+
+
+######################
+## Concrete Dropout ##
+######################
+
+
+class ConcreteDropout(nn.Module):
+    def __init__(self, p_logit=-2.0, temp=0.01, eps=1e-8):
+        super(ConcreteDropout, self).__init__()
+        self.p_logit = nn.Parameter(torch.Tensor([p_logit]))
+        self.temp = temp
+        self.eps = eps
+
+    @property
+    def p(self):
+        return torch.sigmoid(self.p_logit)
+
+    def forward(self, x):
+        # if self.train():
+        unif_noise = torch.rand_like(x)
+        drop_prob = torch.log(self.p + self.eps) -\
+            torch.log(1 - self.p + self.eps) + \
+            torch.log(unif_noise + self.eps) - \
+            torch.log(1 - unif_noise + self.eps)
+
+        drop_prob = torch.sigmoid(drop_prob / self.temp)
+        random_tensor = 1. - drop_prob
+        retain_prob = 1. - self.p
+        x *= random_tensor
+        x /= retain_prob
+
+        return x
