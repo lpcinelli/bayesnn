@@ -190,13 +190,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Bayesian NN for regression")
 
     parser.add_argument(
-        "prefix",
+        "--prefix",
         type=str,
         help="Prefix of experiment name in results folder Path: 'results/{prefix}_{method}/'",
     )
 
     parser.add_argument(
-        "method",
+        "--method",
         choices=["bbb", "pbp", "vadam", "dropout"],
         help=f"Inference method. Choices are: %(choices)s",
     )
