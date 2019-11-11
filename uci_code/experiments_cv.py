@@ -558,9 +558,9 @@ class CrossValExperimentVadamMLPReg(CrossValExperiment):
 
         # Unnormalize noise precision
         if self.normalize_y:
-            tau = self.model_params["noise_prec"] / (self.y_std ** 2)
+            tau = torch.tensor(self.model_params["noise_prec"]) / (self.y_std ** 2)
         else:
-            tau = self.model_params["noise_prec"]
+            tau = torch.tensor(self.model_params["noise_prec"])
 
         # Normalize train x
         if self.normalize_x:
@@ -754,9 +754,9 @@ class CrossValExperimentBBBMLPReg(CrossValExperiment):
 
         # Unnormalize noise precision
         if self.normalize_y:
-            tau = self.model_params["noise_prec"] / (self.y_std ** 2)
+            tau = torch.tensor(self.model_params["noise_prec"]) / (self.y_std ** 2)
         else:
-            tau = self.model_params["noise_prec"]
+            tau = torch.tensor(self.model_params["noise_prec"])
 
         # Normalize train x
         if self.normalize_x:
@@ -921,6 +921,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
 
     def _init_model(self):
         lengthscale = 1e-2
+        # lengthscale = np.sqrt(model_params["prior_prec"])
         self.model = DropoutMLP(
             input_size=self.data.num_features,
             hidden_sizes=self.model_params["hidden_sizes"],
@@ -940,6 +941,7 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         # prior_prec = (prior) lengthscale
         # noise_prec = tau
         lengthscale = 1e-2
+        # lengthscale = np.sqrt(model_params["prior_prec"])
         weight_decay = (
             (1 - self.model_params["dropout"])
             * (lengthscale ** 2)
@@ -959,9 +961,9 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
 
         # Unnormalize noise precision
         if self.normalize_y:
-            tau = self.model_params["noise_prec"] / (self.y_std ** 2)
+            tau = torch.tensor(self.model_params["noise_prec"]) / (self.y_std ** 2)
         else:
-            tau = self.model_params["noise_prec"]
+            tau = torch.tensor(self.model_params["noise_prec"])
 
         # Normalize train x
         if self.normalize_x:
