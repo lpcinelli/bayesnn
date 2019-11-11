@@ -751,8 +751,8 @@ class ExperimentDropoutMLPReg(Experiment):
         )
 
         # Initialize model
-        # lengthscale = 1e-2
-        lengthscale = np.sqrt(model_params["prior_prec"])
+        lengthscale = 1e-2
+        # lengthscale = np.sqrt(model_params["prior_prec"])
         self.model = DropoutMLP(
             input_size=self.data.num_features,
             hidden_sizes=model_params["hidden_sizes"],
@@ -799,7 +799,8 @@ class ExperimentDropoutMLPReg(Experiment):
         N = self.data.get_train_size()
         weight_decay = (1 - model_params["dropout"]) * lengthscale ** 2 / (2 * tau * N)
 
-        self.optimizer = available_optim[optim_params["optim"]](
+        # self.optimizer = available_optim[optim_params["optim"]](
+        self.optimizer = torch.optim.Adam(
             self.model.parameters(),
             optim_params["learning_rate"],
             optim_params["betas"],

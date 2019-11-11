@@ -920,14 +920,12 @@ class CrossValExperimentDropoutMLPReg(CrossValExperiment):
         ]
 
     def _init_model(self):
-        lengthscale = 1e-2
-        # lengthscale = np.sqrt(model_params["prior_prec"])
         self.model = DropoutMLP(
             input_size=self.data.num_features,
             hidden_sizes=self.model_params["hidden_sizes"],
             output_size=self.data.num_classes,
             act_func=self.model_params["act_func"],
-            prior_prec=lengthscale,
+            # prior_prec=lengthscale,
             # prior_prec=self.model_params["prior_prec"],
             drop_prob=self.model_params["dropout"],
         )
