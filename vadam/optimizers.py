@@ -45,7 +45,7 @@ class Vadam(Optimizer):
         self.train_set_size = train_set_size
 
         defaults = dict(lr=lr, betas=betas, prior_prec=prior_prec, prec_init=prec_init)
-        super(Vadam, self).__init__(params, defaults)
+        super(type(self), self).__init__(params, defaults)
 
     def step(self, closure):
         """Performs a single optimization step.
