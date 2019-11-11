@@ -33,17 +33,15 @@ class DropoutMLP(nn.Module):
     Returns:
         [type] -- [description]
     """
-
     def __init__(
-        self,
-        input_size,
-        hidden_sizes,
-        output_size,
-        drop_prob,
-        prior_prec,
-        act_func="relu",
+            self,
+            input_size,
+            hidden_sizes,
+            output_size,
+            drop_prob,
+            act_func="relu",
     ):
-        super(DropoutMLP, self).__init__()
+        super(type(self), self).__init__()
         self.input_size = input_size
         self.hidden_sizes = hidden_sizes
         self.drop_prob = drop_prob
@@ -68,15 +66,19 @@ class DropoutMLP(nn.Module):
             self.output_layer = nn.Linear(self.input_size, self.output_size)
         else:
             # Neural network
-            hidden_layers = [
-                [nn.Dropout(self.drop_prob), nn.Linear(in_size, out_size)]
-                for in_size, out_size in zip(
-                    [self.input_size] + hidden_sizes[:-1], hidden_sizes
-                )
-            ] + [[nn.Dropout(self.drop_prob)]]
-            self.hidden_layers = nn.ModuleList(
-                [single_layer for item in hidden_layers for single_layer in item]
-            )
+            self.hidden_layers = nn.ModuleList([
+                nn.Linear(in_size, out_size)
+                for in_size, out_size in zip([self.input_size] +
+                                             hidden_sizes[:-1], hidden_sizes)
+            ])
+            #     [nn.Dropout(self.drop_prob),
+            #      nn.Linear(in_size, out_size)]
+            #     for in_size, out_size in zip([self.input_size] +
+            #                                  hidden_sizes[:-1], hidden_sizes)
+            # ] + [[nn.Dropout(self.drop_prob)]]
+            # self.hidden_layers = nn.ModuleList([
+            #     single_layer for item in hidden_layers for single_layer in item
+            # ])
             self.output_layer = nn.Linear(hidden_sizes[-1], self.output_size)
 
     def forward(self, x):
@@ -84,8 +86,9 @@ class DropoutMLP(nn.Module):
         x = x.view(-1, self.input_size)
         out = x
         for layer in self.hidden_layers:
-            out = self.act(layer(out))
-        z = self.output_layer(out)
+            # out = self.act(layer(out))
+            out = self.act(layer(F.dropout(out, p=self.drop_prob)))
+        z = self.output_layer(F.dropout(out, p=self.drop_prob))
         if self.squeeze_output:
             z = torch.squeeze(z).view([-1])
         return z
