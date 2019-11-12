@@ -242,7 +242,8 @@ def run_bayesopt(
 
     elif method == "dropout":
         model_params_final["dropout"] = bo.max["params"]["dropout"]
-        train_params.update({"num_epochs": 10*train_params["num_epochs"]})
+        train_params_dropout = copy.deepcopy(train_params)
+        train_params_dropout.update({"num_epochs": 10*train_params["num_epochs"]})
         experiment = ExperimentDropoutMLPReg(
             results_folder=results_folder,
             data_folder=data_folder,
