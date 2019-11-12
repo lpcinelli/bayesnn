@@ -37,7 +37,7 @@ class ExperimentPBPReg:
         model_params,
         train_params,
         data_params={},
-        experiment_prefix,
+        experiment_prefix='',
         normalize_x=True,
         normalize_y=True,
         results_folder="./results",
